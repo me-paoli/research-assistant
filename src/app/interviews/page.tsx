@@ -16,19 +16,21 @@ export default function InterviewsPage() {
       setInterviews([
         {
           id: '1',
+          user_id: 'mock-user',
           title: 'User Interview with Sarah - Mobile App Experience',
           content: 'Sarah discussed her experience with the mobile app, particularly around the checkout process...',
-          created_at: '2024-01-15T10:30:00Z',
-          updated_at: '2024-01-15T10:30:00Z',
-          tags: ['mobile', 'checkout', 'user-experience'],
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+          tags: [],
           participant_name: 'Sarah',
-          interview_date: '2024-01-10',
-          file_name: 'sarah-interview.pdf',
-          file_size: 2048576,
-          file_type: 'application/pdf'
+          interview_date: '2024-01-01',
+          file_name: 'interview1.txt',
+          file_size: 1234,
+          file_type: 'text/plain',
         },
         {
           id: '2',
+          user_id: 'mock-user',
           title: 'Product Feedback Session with John',
           content: 'John provided detailed feedback about the new dashboard features and suggested improvements...',
           created_at: '2024-01-14T14:20:00Z',
