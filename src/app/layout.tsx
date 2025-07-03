@@ -3,7 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { isMock } from "@/lib/supabase";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,11 +29,6 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {isMock && (
-          <div className="w-full bg-yellow-400 text-yellow-900 text-center py-2 font-semibold">
-            Demo Mode: No Supabase connection. All data is mock/dummy. Set env vars to connect to your backend.
-          </div>
-        )}
         <AuthProvider>
           <Navigation />
           <main>

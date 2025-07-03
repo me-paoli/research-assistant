@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { User as SupabaseUser } from '@supabase/supabase-js'
-import { supabase, isMock } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 import { AuthState, AppUser } from '@/types/database'
 
 interface AuthContextType extends AuthState {
@@ -14,26 +14,12 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-const MOCK_USER: AppUser = {
-  id: 'mock-user',
-  email: 'demo@example.com',
-  full_name: 'Demo User',
-  company_name: 'Demo Company',
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AppUser | null>(isMock ? MOCK_USER : null)
+  const [user, setUser] = useState<AppUser | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (isMock) {
-      setUser(MOCK_USER)
-      setLoading(false)
-      return
-    }
     // Get initial session
     supabase.auth.getSession()
       .then(({ data: { session } }) => {
@@ -110,16 +96,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err: unknown) {
       console.error('Error fetching user profile:', err)
       setError('Failed to load user profile')
+      setLoading(false)
     }
   }
 
   const signUp = async (email: string, password: string, fullName: string, companyName: string) => {
     try {
       setError(null)
-      if (isMock) {
-        setUser({ ...MOCK_USER, email, full_name: fullName, company_name: companyName })
-        return
-      }
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -141,10 +124,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       setError(null)
-      if (isMock) {
-        setUser({ ...MOCK_USER, email })
-        return
-      }
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -160,10 +139,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     try {
       setError(null)
-      if (isMock) {
-        setUser(null)
-        return
-      }
       const { error } = await supabase.auth.signOut()
       if (error) throw error
       setUser(null)
@@ -177,10 +152,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setError(null)
       if (!user) throw new Error('No user logged in')
-      if (isMock) {
-        setUser({ ...user, ...updates })
-        return
-      }
       const { data, error } = await supabase
         .from('users')
         .update(updates)
@@ -202,7 +173,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value = {
     user,
-    loading: isMock ? false : loading,
+    loading,
     error,
     signUp,
     signIn,

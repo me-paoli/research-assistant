@@ -9,20 +9,23 @@ export default function HomePage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
+  // If user is authenticated, redirect to dashboard (or show dashboard)
   useEffect(() => {
-    if (!loading && user) {
+    if (user) {
       router.push('/dashboard');
     }
-  }, [user, loading, router]);
+  }, [user, router]);
 
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  }
-
+  // Show landing page immediately for unauthenticated users
   if (!user) {
     return <PublicLanding />;
   }
 
-  // Optionally, you could render dashboard content here if you want it on the root page
+  // Show loading spinner only if user is authenticated and loading
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+
+  // Optionally, render dashboard content here if you want it on the root page
   return null;
 }
