@@ -120,7 +120,7 @@ function extractKeywords(text: string) {
   })
 
   const keywords = Object.entries(wordCount)
-    .filter(([_, count]) => count > 1)
+    .filter(([, count]) => count > 1)
     .sort(([, a], [, b]) => b - a)
     .slice(0, 10)
     .map(([word, frequency]) => ({
