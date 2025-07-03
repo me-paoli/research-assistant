@@ -6,6 +6,10 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+// Define types:
+type Keyword = { keyword: string; category?: string; frequency?: number };
+type Interview = { id: string; title: string; content: string; keywords?: Keyword[]; participant_name?: string; interview_date?: string; created_at: string; tags?: string[] };
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -61,9 +65,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Process results to include relevance scoring and highlighting
-    const results = interviews?.map((interview: any) => {
+    const results = interviews?.map((interview: Interview) => {
       const matchedKeywords = Array.isArray(interview.keywords) ? interview.keywords.filter(isKeyword) : [];
-      const matchedKeywordStrings = matchedKeywords.map((k: { keyword: string }) => k.keyword);
+      const matchedKeywordStrings = matchedKeywords.map((k: Keyword) => k.keyword);
 
       const relevanceScore = calculateRelevanceScore(interview, query, matchedKeywords)
       const highlightedContent = highlightQuery(interview.content, query)
@@ -99,7 +103,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function calculateRelevanceScore(interview: any, query: string, matchedKeywords: unknown[]): number {
+function calculateRelevanceScore(interview: Interview, query: string, matchedKeywords: Keyword[]): number {
   let score = 0
 
   // Title match (highest weight)
@@ -127,6 +131,6 @@ function highlightQuery(content: string, query: string): string {
   return content.replace(regex, '<mark>$1</mark>')
 }
 
-function isKeyword(obj: unknown): obj is { keyword: string } {
-  return typeof obj === 'object' && obj !== null && 'keyword' in obj && typeof (obj as any).keyword === 'string';
+function isKeyword(obj: unknown): obj is Keyword {
+  return typeof obj === 'object' && obj !== null && 'keyword' in obj && typeof (obj as { keyword: unknown }).keyword === 'string';
 } 
