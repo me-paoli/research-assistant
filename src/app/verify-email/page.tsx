@@ -4,7 +4,7 @@ export default function VerifyEmailPage() {
       <div className="bg-white p-8 rounded-xl shadow-md text-center">
         <h1 className="text-2xl font-bold mb-4">Verify Your Email</h1>
         <p className="mb-4">
-          We've sent a verification link to your email address. Please check your inbox and click the link to activate your account.
+          We&apos;ve sent a verification link to your email address. Please check your inbox and click the link to activate your account.
         </p>
         <p className="text-gray-500 text-sm">
           Once verified, you can log in with your credentials.
