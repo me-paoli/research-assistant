@@ -61,11 +61,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Process results to include relevance scoring and highlighting
-    const results = interviews?.map(interview => {
+    const results = interviews?.map((interview: any) => {
       const matchedKeywords = Array.isArray(interview.keywords) ? interview.keywords.filter(isKeyword) : [];
-      const matchedKeywordStrings = matchedKeywords.map((k: any) => k.keyword);
+      const matchedKeywordStrings = matchedKeywords.map((k: { keyword: string }) => k.keyword);
 
-      const relevanceScore = calculateRelevanceScore(interview as any, query, matchedKeywords)
+      const relevanceScore = calculateRelevanceScore(interview, query, matchedKeywords)
       const highlightedContent = highlightQuery(interview.content, query)
 
       return {
@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function calculateRelevanceScore(interview: any, query: string, matchedKeywords: any[]): number {
+function calculateRelevanceScore(interview: any, query: string, matchedKeywords: unknown[]): number {
   let score = 0
 
   // Title match (highest weight)
@@ -127,6 +127,6 @@ function highlightQuery(content: string, query: string): string {
   return content.replace(regex, '<mark>$1</mark>')
 }
 
-function isKeyword(obj: any): obj is { keyword: string } {
+function isKeyword(obj: unknown): obj is { keyword: string } {
   return typeof obj === 'object' && obj !== null && 'keyword' in obj && typeof (obj as any).keyword === 'string';
 } 

@@ -69,8 +69,6 @@ export default function SignUpPage() {
     try {
       await signUp(formData.email, formData.password, formData.fullName, formData.companyName)
       router.push('/auth/verify-email')
-    } catch (err) {
-      // Error is handled by the auth context
     } finally {
       setIsLoading(false)
     }

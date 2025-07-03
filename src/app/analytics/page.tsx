@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { BarChart3, TrendingUp, Users, FileText, Tag, Calendar, Target, Star, TrendingDown, Minus } from 'lucide-react'
+import { BarChart3, TrendingUp, Users, FileText, Tag, Calendar, TrendingDown, Minus } from 'lucide-react'
 import { ProductProfile, ProductMarketFitMetrics } from '@/types/database'
 
 export default function AnalyticsPage() {

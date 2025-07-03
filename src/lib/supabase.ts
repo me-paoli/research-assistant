@@ -3,7 +3,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-let supabase: any
+let supabase: unknown
 let isMock = false
 
 if (supabaseUrl && supabaseAnonKey) {
@@ -18,7 +18,7 @@ if (supabaseUrl && supabaseAnonKey) {
       signInWithPassword: async () => ({ data: { user: { id: 'mock-user', email: 'demo@example.com' } }, error: null }),
       signOut: async () => ({ error: null }),
       getSession: async () => ({ data: { session: { user: { id: 'mock-user', email: 'demo@example.com' } } } }),
-      onAuthStateChange: (cb: any) => ({ data: { subscription: { unsubscribe: () => {} } } }),
+      onAuthStateChange: (cb: unknown) => ({ data: { subscription: { unsubscribe: () => {} } } }),
       getUser: async () => ({ data: { user: { id: 'mock-user', email: 'demo@example.com' } }, error: null })
     },
     from: () => ({
