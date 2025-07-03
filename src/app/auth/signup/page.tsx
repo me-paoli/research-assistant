@@ -68,7 +68,7 @@ export default function SignUpPage() {
 
     try {
       await signUp(formData.email, formData.password, formData.fullName, formData.companyName)
-      router.push('/auth/verify-email')
+      router.push('/verify-email')
     } finally {
       setIsLoading(false)
     }
