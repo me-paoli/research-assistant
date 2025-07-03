@@ -2,29 +2,31 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import type { AuthError } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 
 export default function AuthCallback() {
   const [message, setMessage] = useState('Verifying your email…');
   const router = useRouter();
-  const supabase = createClientComponentClient();
 
   useEffect(() => {
     // For email links the tokens are already in the URL fragment.
     // getSession() parses them, stores the session, and removes the hash.
     supabase.auth
       .getSession()
-      .then(({ error }: { error: AuthError | null }) => {
+      .then(({ data: { session }, error }) => {
         if (error) throw error;
-        router.replace('/dashboard');      // 🚧 choose your post-login page
+        if (session) {
+          router.replace('/dashboard');
+        } else {
+          setMessage('No session found. Please try signing in again.');
+        }
       })
       .catch((err: unknown) => {
         console.error('Auth callback error', err);
         setMessage('Sorry, verification failed.');
         // Optionally redirect to /error or back to /signin after a delay
       });
-  }, [router, supabase]);
+  }, [router]);
 
   return (
     <main className="flex h-screen items-center justify-center text-white bg-black">
