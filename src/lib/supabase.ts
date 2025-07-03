@@ -18,7 +18,7 @@ if (supabaseUrl && supabaseAnonKey) {
       signInWithPassword: async () => ({ data: { user: { id: 'mock-user', email: 'demo@example.com' } }, error: null }),
       signOut: async () => ({ error: null }),
       getSession: async () => ({ data: { session: { user: { id: 'mock-user', email: 'demo@example.com' } } } }),
-      onAuthStateChange: (cb: unknown) => ({ data: { subscription: { unsubscribe: () => {} } } }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
       getUser: async () => ({ data: { user: { id: 'mock-user', email: 'demo@example.com' } }, error: null })
     },
     from: () => ({
