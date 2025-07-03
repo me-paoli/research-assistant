@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import type { AuthError } from '@supabase/supabase-js';
 
 export default function AuthCallback() {
   const [message, setMessage] = useState('Verifying your email…');
@@ -14,7 +15,7 @@ export default function AuthCallback() {
     // getSession() parses them, stores the session, and removes the hash.
     supabase.auth
       .getSession()
-      .then(({ error }: { error: any }) => {
+      .then(({ error }: { error: AuthError | null }) => {
         if (error) throw error;
         router.replace('/dashboard');      // 🚧 choose your post-login page
       })
