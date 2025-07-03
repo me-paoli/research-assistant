@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { AuthState, AppUser } from '@/types/database'
+import { getSiteUrl } from '@/lib/getSiteUrl'
 
 interface AuthContextType extends AuthState {
   signUp: (email: string, password: string, fullName: string, companyName: string) => Promise<void>
@@ -110,7 +111,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           data: {
             full_name: fullName,
             company_name: companyName
-          }
+          },
+          emailRedirectTo: `${getSiteUrl()}/auth/callback`,
         }
       })
 
