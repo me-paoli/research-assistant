@@ -7,6 +7,7 @@ import { ProductProfile } from '@/types/database'
 export default function SettingsPage() {
   const [product, setProduct] = useState<ProductProfile>({
     id: '',
+    user_id: '',
     name: '',
     description: '',
     product_url: '',

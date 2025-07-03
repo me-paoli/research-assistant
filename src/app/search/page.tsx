@@ -1,58 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, Filter, Tag, Calendar, User } from 'lucide-react'
+import { Search, Tag, Calendar, User } from 'lucide-react'
 import { SearchResult } from '@/types/database'
 
 export default function SearchPage() {
   const [query, setQuery] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState('all')
-  const [selectedTags, setSelectedTags] = useState<string[]>([])
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
-
-  // Mock data for demonstration
-  const categories = [
-    { id: 'all', name: 'All Categories', color: 'gray' },
-    { id: 'user-experience', name: 'User Experience', color: 'blue' },
-    { id: 'product-feedback', name: 'Product Feedback', color: 'green' },
-    { id: 'pain-points', name: 'Pain Points', color: 'red' },
-    { id: 'feature-requests', name: 'Feature Requests', color: 'purple' }
-  ]
-
-  const tags = [
-    'mobile', 'desktop', 'onboarding', 'checkout', 'navigation', 
-    'performance', 'design', 'accessibility', 'pricing', 'support'
-  ]
-
-  const handleSearch = () => {
-    // Mock search results
-    const mockResults: SearchResult[] = [
-      {
-        interview: {
-          id: '1',
-          title: 'User Interview with Sarah - Mobile App Experience',
-          content: 'Sarah discussed her experience with the mobile app, particularly around the checkout process...',
-          created_at: '2024-01-15',
-          updated_at: '2024-01-15',
-          tags: ['mobile', 'checkout', 'user-experience'],
-          participant_name: 'Sarah',
-          interview_date: '2024-01-10'
-        },
-        matched_keywords: ['mobile', 'checkout', 'user experience'],
-        relevance_score: 0.95,
-        highlighted_content: 'Sarah discussed her <mark>experience</mark> with the <mark>mobile</mark> app, particularly around the <mark>checkout</mark> process...'
-      }
-    ]
-    setSearchResults(mockResults)
-  }
-
-  const toggleTag = (tag: string) => {
-    setSelectedTags(prev => 
-      prev.includes(tag) 
-        ? prev.filter(t => t !== tag)
-        : [...prev, tag]
-    )
-  }
+  const [searchResults] = useState<SearchResult[]>([])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -61,7 +15,7 @@ export default function SearchPage() {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Search Interviews</h1>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            Search through your research interviews using keywords, categories, and tags to find relevant insights quickly.
+            Search through your research interviews using keywords to find relevant insights quickly.
           </p>
         </div>
 
@@ -75,64 +29,14 @@ export default function SearchPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="w-full pl-12 pr-4 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
-              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+              // onKeyPress and search logic to be implemented with real API
             />
             <button
-              onClick={handleSearch}
+              // onClick logic to be implemented with real API
               className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
             >
               Search
             </button>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="max-w-4xl mx-auto mb-8">
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-            <div className="flex items-center space-x-2 mb-4">
-              <Filter className="w-5 h-5 text-gray-600" />
-              <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
-            </div>
-
-            {/* Categories */}
-            <div className="mb-6">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Categories</h3>
-              <div className="flex flex-wrap gap-2">
-                {categories.map((category) => (
-                  <button
-                    key={category.id}
-                    onClick={() => setSelectedCategory(category.id)}
-                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                      selectedCategory === category.id
-                        ? 'bg-blue-100 text-blue-800 border border-blue-300'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {category.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Tags */}
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Tags</h3>
-              <div className="flex flex-wrap gap-2">
-                {tags.map((tag) => (
-                  <button
-                    key={tag}
-                    onClick={() => toggleTag(tag)}
-                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                      selectedTags.includes(tag)
-                        ? 'bg-green-100 text-green-800 border border-green-300'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {tag}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
 
@@ -207,7 +111,7 @@ export default function SearchPage() {
               <Search className="w-16 h-16 mx-auto mb-4 text-gray-300" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No search results yet</h3>
               <p className="text-gray-600">
-                Try searching for keywords, categories, or participant names to find relevant interviews.
+                Try searching for keywords or participant names to find relevant interviews.
               </p>
             </div>
           )}

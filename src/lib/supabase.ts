@@ -1,9 +1,9 @@
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { createClient as createSupabaseClient, SupabaseClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-let supabase: unknown
+let supabase: SupabaseClient
 let isMock = false
 
 if (supabaseUrl && supabaseAnonKey) {
@@ -36,7 +36,7 @@ if (supabaseUrl && supabaseAnonKey) {
         upload: async () => ({ data: { path: 'mock/path/file.txt' }, error: null })
       })
     }
-  }
+  } as unknown as SupabaseClient
 }
 
 export { supabase, isMock } 
