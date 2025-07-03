@@ -26,6 +26,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .then(({ data: { session } }) => {
         console.log('Supabase session:', session)
         if (session?.user) {
+          console.log('Fetching user profile for:', session.user.id)
           fetchUserProfile(session.user)
         }
         setLoading(false)
@@ -39,6 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state change:', event, session)
       if (session?.user) {
+        console.log('Fetching user profile for:', session.user.id)
         await fetchUserProfile(session.user)
       } else {
         setUser(null)
@@ -51,11 +53,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUserProfile = async (supabaseUser: SupabaseUser) => {
     try {
+      console.log('fetchUserProfile called for:', supabaseUser.id)
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', supabaseUser.id)
         .single()
+      console.log('fetchUserProfile result:', { data, error })
 
       if (error && error.code !== 'PGRST116') {
         throw error
@@ -70,8 +74,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           created_at: data.created_at,
           updated_at: data.updated_at
         })
+        console.log('User profile set:', data)
       } else {
         // Create user profile if it doesn't exist
+        console.log('User profile not found, creating new user profile for:', supabaseUser.id)
         const { data: newUser, error: createError } = await supabase
           .from('users')
           .insert({
@@ -82,6 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           })
           .select()
           .single()
+        console.log('User profile creation result:', { newUser, createError })
 
         if (createError) throw createError
 
@@ -93,12 +100,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           created_at: newUser.created_at,
           updated_at: newUser.updated_at
         })
+        console.log('User profile set after creation:', newUser)
       }
     } catch (err: unknown) {
       console.error('Error fetching user profile:', err)
       setError('Failed to load user profile')
       setLoading(false)
     }
+    setLoading(false)
   }
 
   const signUp = async (email: string, password: string, fullName: string, companyName: string) => {
