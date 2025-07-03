@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { Eye, EyeOff, Mail, Lock, User, Building, ArrowRight } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 
 export default function SignUpPage() {
   const [formData, setFormData] = useState({
@@ -81,15 +80,6 @@ export default function SignUpPage() {
     return 'bg-green-500'
   }
 
-  const handleGoogleSignUp = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: 'https://research-assistant-lac.vercel.app/auth/callback'
-      }
-    })
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
@@ -106,14 +96,6 @@ export default function SignUpPage() {
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-          <button
-            type="button"
-            onClick={handleGoogleSignUp}
-            className="w-full flex items-center justify-center py-3 px-4 mb-6 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 text-gray-700 font-medium shadow-sm transition-colors"
-          >
-            <svg className="h-5 w-5 mr-2" viewBox="0 0 48 48"><g><path d="M44.5 20H24v8.5h11.7C34.7 33.1 29.8 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c2.7 0 5.2.9 7.2 2.4l6.4-6.4C34.1 5.1 29.3 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21c10.5 0 19.5-7.6 19.5-21 0-1.3-.1-2.7-.3-4z" fill="#FFC107"/><path d="M6.3 14.7l7 5.1C15.5 16.1 19.4 13 24 13c2.7 0 5.2.9 7.2 2.4l6.4-6.4C34.1 5.1 29.3 3 24 3c-7.2 0-13.4 4.1-16.7 10.1z" fill="#FF3D00"/><path d="M24 45c5.6 0 10.4-1.9 14.2-5.1l-6.6-5.4C29.7 36.1 27 37 24 37c-5.7 0-10.6-3.9-12.3-9.1l-7 5.4C7.6 40.9 15.2 45 24 45z" fill="#4CAF50"/><path d="M44.5 20H24v8.5h11.7c-1.1 3.1-4.2 5.5-7.7 5.5-2.2 0-4.2-.7-5.7-2l-7 5.4C15.2 40.9 19.4 45 24 45c10.5 0 19.5-7.6 19.5-21 0-1.3-.1-2.7-.3-4z" fill="#1976D2"/></g></svg>
-            Sign up with Google
-          </button>
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div className="grid grid-cols-2 gap-4">
               <div>
