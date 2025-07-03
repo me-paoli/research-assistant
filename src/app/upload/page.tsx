@@ -7,7 +7,6 @@ import { UploadProgress } from '@/types/database'
 
 export default function UploadPage() {
   const [uploads, setUploads] = useState<UploadProgress[]>([])
-  const [isUploading, setIsUploading] = useState(false)
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newUploads: UploadProgress[] = acceptedFiles.map(file => ({
@@ -17,7 +16,6 @@ export default function UploadPage() {
     }))
     
     setUploads(prev => [...prev, ...newUploads])
-    setIsUploading(true)
     
     // Simulate upload process
     acceptedFiles.forEach((file, index) => {
@@ -62,12 +60,6 @@ export default function UploadPage() {
         ? { ...u, status: 'completed' }
         : u
     ))
-    
-    // Check if all uploads are complete
-    const allComplete = uploads.every(u => u.status === 'completed')
-    if (allComplete) {
-      setIsUploading(false)
-    }
   }
 
   const removeUpload = (fileName: string) => {

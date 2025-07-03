@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState } from 'react'
-import { User as SupabaseUser, Session } from '@supabase/supabase-js'
+import { User as SupabaseUser } from '@supabase/supabase-js'
 import { supabase, isMock } from '@/lib/supabase'
 import { AuthState, AppUser } from '@/types/database'
 
@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event: string, session: { user?: SupabaseUser } | null) => {
       if (session?.user) {
         await fetchUserProfile(session.user)
       } else {
@@ -102,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           updated_at: newUser.updated_at
         })
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Error fetching user profile:', err)
       setError('Failed to load user profile')
     }
@@ -127,8 +127,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
 
       if (error) throw error
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(err as string)
       throw err
     }
   }
@@ -146,8 +146,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
 
       if (error) throw error
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(err as string)
       throw err
     }
   }
@@ -162,8 +162,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { error } = await supabase.auth.signOut()
       if (error) throw error
       setUser(null)
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(err as string)
       throw err
     }
   }
@@ -189,8 +189,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ...user,
         ...data
       })
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(err as string)
       throw err
     }
   }

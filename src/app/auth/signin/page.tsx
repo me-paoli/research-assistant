@@ -22,8 +22,6 @@ export default function SignInPage() {
     try {
       await signIn(email, password)
       router.push('/')
-    } catch (err) {
-      // Error is handled by the auth context
     } finally {
       setIsLoading(false)
     }
@@ -146,7 +144,7 @@ export default function SignInPage() {
 
             <div className="text-center">
               <p className="text-sm text-gray-600">
-                Don't have an account?{' '}
+                Don&apos;t have an account?{' '}
                 <Link href="/auth/signup" className="text-blue-600 hover:text-blue-800 font-medium">
                   Sign up
                 </Link>

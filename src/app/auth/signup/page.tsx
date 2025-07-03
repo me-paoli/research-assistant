@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { Eye, EyeOff, Mail, Lock, User, Building, ArrowRight, Check } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, User, Building, ArrowRight } from 'lucide-react'
 
 export default function SignUpPage() {
   const [formData, setFormData] = useState({
@@ -22,7 +22,7 @@ export default function SignUpPage() {
     feedback: ''
   })
   
-  const { signUp, error } = useAuth()
+  const { signUp } = useAuth()
   const router = useRouter()
 
   const handleInputChange = (field: string, value: string) => {

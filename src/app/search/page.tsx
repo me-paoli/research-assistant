@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, Filter, FileText, Tag, Calendar, User } from 'lucide-react'
+import { Search, Filter, Tag, Calendar, User } from 'lucide-react'
 import { SearchResult } from '@/types/database'
 
 export default function SearchPage() {

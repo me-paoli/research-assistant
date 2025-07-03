@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Search, Upload, FileText, BarChart3, Settings, ExternalLink, Target, Star, TrendingUp, ArrowRight } from 'lucide-react'
+import { Search, Upload, FileText, BarChart3, Settings, ExternalLink, Target, Star, TrendingUp } from 'lucide-react'
 import { ProductProfile } from '@/types/database'
 import { useAuth } from '@/contexts/AuthContext'
 import ProtectedRoute from '@/components/ProtectedRoute'

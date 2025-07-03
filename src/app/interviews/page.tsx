@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FileText, Calendar, User, Tag, Search, Filter } from 'lucide-react'
+import { FileText, Calendar, User, Search, Filter } from 'lucide-react'
 import { Interview } from '@/types/database'
 
 export default function InterviewsPage() {

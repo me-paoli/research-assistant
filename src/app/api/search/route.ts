@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { SearchResult } from '@/types/database'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -63,11 +62,10 @@ export async function GET(request: NextRequest) {
 
     // Process results to include relevance scoring and highlighting
     const results = interviews?.map(interview => {
-      const matchedKeywords = interview.keywords?.filter((k: any) => 
-        k.keyword.toLowerCase().includes(query.toLowerCase())
-      ) || []
+      const matchedKeywords = Array.isArray(interview.keywords) ? interview.keywords.filter(isKeyword) : [];
+      const matchedKeywordStrings = matchedKeywords.map((k: any) => k.keyword);
 
-      const relevanceScore = calculateRelevanceScore(interview, query, matchedKeywords)
+      const relevanceScore = calculateRelevanceScore(interview as any, query, matchedKeywords)
       const highlightedContent = highlightQuery(interview.content, query)
 
       return {
@@ -80,7 +78,7 @@ export async function GET(request: NextRequest) {
           created_at: interview.created_at,
           tags: interview.tags
         },
-        matched_keywords: matchedKeywords.map((k: any) => k.keyword),
+        matched_keywords: matchedKeywordStrings,
         relevance_score: relevanceScore,
         highlighted_content: highlightedContent
       }
@@ -127,4 +125,8 @@ function calculateRelevanceScore(interview: any, query: string, matchedKeywords:
 function highlightQuery(content: string, query: string): string {
   const regex = new RegExp(`(${query})`, 'gi')
   return content.replace(regex, '<mark>$1</mark>')
+}
+
+function isKeyword(obj: any): obj is { keyword: string } {
+  return typeof obj === 'object' && obj !== null && 'keyword' in obj && typeof (obj as any).keyword === 'string';
 } 
