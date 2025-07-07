@@ -4,9 +4,39 @@ import { useState } from 'react'
 import { Search, Tag, Calendar, User } from 'lucide-react'
 import { SearchResult } from '@/types/database'
 
-export default function SearchPage() {
+export default function InterviewSearchPage() {
   const [query, setQuery] = useState('')
-  const [searchResults] = useState<SearchResult[]>([])
+  const [results, setResults] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`)
+      const data = await res.json()
+      if (res.ok) {
+        setResults(data.results || [])
+      } else {
+        setError(data.error || 'Search failed')
+      }
+    } catch (err) {
+      setError('Search failed')
+    }
+    setLoading(false)
+  }
+
+  const getSentimentLabel = (sentiment: number | string | null | undefined) => {
+    if (sentiment === null || sentiment === undefined) return 'N/A';
+    const value = typeof sentiment === 'string' ? parseFloat(sentiment) : sentiment;
+    if (typeof value !== 'number' || isNaN(value)) return 'N/A';
+    if (value <= 4) return 'Negative';
+    if (value === 5) return 'Neutral';
+    if (value >= 6) return 'Positive';
+    return 'N/A';
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -42,55 +72,61 @@ export default function SearchPage() {
 
         {/* Search Results */}
         <div className="max-w-4xl mx-auto">
-          {searchResults.length > 0 ? (
+          {loading && <div className="text-gray-500 mb-4">Searching…</div>}
+          {error && <div className="text-red-500 mb-4">{error}</div>}
+          {results.length > 0 ? (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-gray-900">
-                  Search Results ({searchResults.length})
+                  Search Results ({results.length})
                 </h2>
                 <div className="text-sm text-gray-600">
                   Sorted by relevance
                 </div>
               </div>
 
-              {searchResults.map((result) => (
-                <div key={result.interview.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+              {results.map((item) => (
+                <div key={item.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
                       <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                        {result.interview.title}
+                        {item.name || item.subject_name}
                       </h3>
                       <div className="flex items-center space-x-4 text-sm text-gray-600 mb-3">
                         <div className="flex items-center space-x-1">
-                          <User className="w-4 h-4" />
-                          <span>{result.interview.participant_name}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
                           <Calendar className="w-4 h-4" />
-                          <span>{result.interview.interview_date}</span>
+                          <span>{item.date || item.interview_date}</span>
                         </div>
                         <div className="flex items-center space-x-1">
                           <Tag className="w-4 h-4" />
-                          <span>{result.matched_keywords.length} matches</span>
+                          <span>{Array.isArray(item.keywords) ? item.keywords.join(', ') : item.keywords || 'N/A'}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <span className="text-xs text-gray-600">Fit Score:</span>
+                          <span className="text-xs font-semibold text-blue-600">{typeof item.pmf_score === 'number' ? `${item.pmf_score}%` : 'N/A'}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <span className="text-xs text-gray-600">Sentiment:</span>
+                          <span className="text-xs font-semibold">{getSentimentLabel(item.sentiment)}</span>
                         </div>
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="text-sm text-gray-600">Relevance</div>
                       <div className="text-lg font-semibold text-blue-600">
-                        {Math.round(result.relevance_score * 100)}%
+                        {Math.round(item.relevance_score * 100)}%
                       </div>
                     </div>
                   </div>
 
                   <div 
                     className="text-gray-700 mb-4 leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: result.highlighted_content }}
+                    dangerouslySetInnerHTML={{ __html: item.summary }}
                   />
 
                   <div className="flex items-center justify-between">
                     <div className="flex flex-wrap gap-2">
-                      {result.interview.tags.map((tag) => (
+                      {item.tags?.map((tag) => (
                         <span
                           key={tag}
                           className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full"

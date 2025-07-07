@@ -1,15 +1,5 @@
-export interface AppUser {
-  id: string
-  email: string
-  full_name?: string
-  company_name?: string
-  created_at: string
-  updated_at: string
-}
-
 export interface Interview {
   id: string
-  user_id: string
   title: string
   content: string
   file_path?: string
@@ -29,7 +19,6 @@ export interface Interview {
 
 export interface Keyword {
   id: string
-  user_id: string
   keyword: string
   category: string
   interview_id: string
@@ -39,7 +28,6 @@ export interface Keyword {
 
 export interface Category {
   id: string
-  user_id: string
   name: string
   description?: string
   color?: string
@@ -48,7 +36,6 @@ export interface Category {
 
 export interface ProductProfile {
   id: string
-  user_id: string
   name: string
   description: string
   product_url?: string
@@ -87,10 +74,5 @@ export interface UploadProgress {
   progress: number
   status: 'uploading' | 'processing' | 'completed' | 'error'
   error?: string
-}
-
-export interface AuthState {
-  user: AppUser | null
-  loading: boolean
-  error: string | null
+  interview?: any // AI-extracted interview metadata
 } 
