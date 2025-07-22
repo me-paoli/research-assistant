@@ -26,7 +26,8 @@ async function checkBucketHandler(request: NextRequest) {
     return createSuccessResponse({ 
       bucketExists: true, 
       fileCount: data.length,
-      bucketName: PRODUCT_DOCUMENTS_BUCKET
+      bucketName: PRODUCT_DOCUMENTS_BUCKET,
+      error: ''
     })
   } catch (error) {
     console.error('Bucket check failed:', error)
