@@ -1,214 +1,351 @@
-# Research Assistant Refactoring Plan (Prototype Focus)
+# Research Assistant: Hierarchical Processing Pipeline Upgrade
 
 ## Overview
-This document outlines a simplified refactoring plan focused on creating a clean, maintainable codebase for the research assistant prototype. The plan prioritizes code organization, type safety, and developer experience over security hardening and performance optimization.
+Upgrading the Next.js TypeScript PMF analysis backend to support large interviews with hierarchical chunk processing. The system will automatically choose between simple mode (< 6,000 tokens) and hierarchical mode (≥ 6,000 tokens) based on document size.
 
-## Phase 1: Core Architecture & Type Safety
+## Two Processing Modes
 
-### 🔴 Critical Issues (Must Fix)
+| Mode                  | Trigger                        | Flow                                                               |
+| --------------------- | ------------------------------ | ------------------------------------------------------------------ |
+| **Simple Mode**       | Estimated raw tokens `< 6,000` | Single Extraction → Scoring (existing)                            |
+| **Hierarchical Mode** | Estimated raw tokens `≥ 6,000` | 1) Chunking 2) Per-Chunk Extraction 3) Merge & Compress 4) Scoring |
 
-#### API Route Standardization
-- [ ] **Migrate all API routes to App Router**
-  - Move from `pages/api/` to `src/app/api/`
-  - Update all route handlers to use new Next.js 15 patterns
-  - Context: Mixed API route patterns causing confusion
+**Token Estimation**: `Math.round(charCount / 4)` (English heuristic)
 
-- [ ] **Implement consistent error handling**
-  - Create simple error handling utilities
-  - Standardize error response format
-  - Context: Inconsistent error handling across endpoints
+## Phase 1: New Core Utilities
 
-- [ ] **Add basic request validation**
-  - Use `zod` for simple input validation
-  - Validate required fields in API requests
-  - Context: No input validation currently
+### 🔴 Critical Files to Create
 
-#### Type Safety Improvements
-- [ ] **Replace all `any` types**
-  - Create proper interfaces for all data structures
-  - Add TypeScript interfaces for API responses
-  - Context: Loose typing causing development issues
+#### `/src/lib/token-estimate.ts` ⭐
+```typescript
+export function approximateTokens(text: string) {
+  return Math.round(text.length / 4);
+}
+```
+- Simple English heuristic for token estimation
+- Used for mode selection (simple vs hierarchical)
+- Future-ready for tiktoken integration
 
-- [ ] **Add environment validation**
-  - Create `src/lib/env.ts` to validate required environment variables
-  - Use `zod` for runtime validation
-  - Context: Currently using `!` assertions which can cause runtime errors
+#### `/src/lib/chunking.ts` ⭐
+```typescript
+interface Turn { speaker: string; text: string; }
 
-## Phase 2: Code Organization & Maintainability
+function parseTurns(transcript: string): Turn[]
+function chunkByTurns(transcript: string, targetTokens = 1400, maxTokens = 1700)
+```
+- Speaker-aware chunking by conversation turns
+- Token-based targeting (1400 target, 1700 max)
+- Character position tracking
+- Speaker statistics per chunk
+- Overflow handling for long turns
 
-### 🟡 Code Structure (High Priority)
+#### `/src/lib/extraction-merge.ts` ⭐
+```typescript
+export function mergeChunkExtractions(
+  extractions: ChunkExtraction[],
+  originalTokenEstimate: number
+): MergedExtraction
+```
+- Deduplicates by ID (pains/features) or similarity (quotes)
+- Merges evidence arrays (max 6 for pains, 5 for features)
+- Quality filtering (max 45 words per quote, 120 total)
+- Statistics tracking (total chunks, token estimates)
 
-#### Component Architecture
-- [ ] **Break down large components**
-  - Split Upload page (421 lines) into smaller components
-  - Create reusable UI components
-  - Context: Large components are hard to maintain
+#### `/src/lib/compression.ts` ⭐
+```typescript
+export interface CompressedForScoring {
+  product_context_summary: string;
+  pains: any[];
+  feature_requests: any[];
+  needs: string[];
+  representative_quotes: { id: string; text: string; speaker: string }[];
+  meta: { originalTokenEstimate: number; compressionRatio: number };
+}
 
-- [ ] **Create custom hooks**
-  - Extract `useFileUpload`, `useInterviewStatus`, `useSearch`
-  - Remove duplicate logic across components
-  - Context: Repeated logic in multiple components
+export function compressForScoring(
+  merged: MergedExtraction,
+  productSummary: string,
+  maxQuotesPerPain = 2
+): CompressedForScoring
+```
+- Limits evidence (max 2 quotes per pain/feature)
+- Selects top 80 representative quotes
+- Calculates compression ratio
+- Prepares data for scoring
 
-- [ ] **Implement proper state management**
-  - Use React Context or Zustand for shared state
-  - Separate UI state from business logic
-  - Context: Complex state management in components
+## Phase 2: Updated Core Files
 
-#### Code Standards
-- [ ] **Add comprehensive ESLint rules**
-  - Configure TypeScript rules
-  - Add import/export rules
-  - Context: Basic ESLint configuration
+### 🟡 Files to Update
 
-- [ ] **Implement Prettier**
-  - Add Prettier for consistent formatting
-  - Context: Inconsistent code formatting
+#### `/src/lib/prompt-templates.ts` (UPDATED)
+**Add new prompt:**
+```typescript
+export const chunkExtractionSystem = `
+You extract ONLY *new* structured items from a SINGLE interview chunk.
 
-- [ ] **Add JSDoc documentation**
-  - Document all public functions and components
-  - Add inline comments for complex logic
-  - Context: No code documentation
+Return JSON:
+{
+ "pains":[{"id":"kebab-id","description":"...","severity":1-5,"evidence":["verbatim quote <=30 words"]}],
+ "feature_requests":[{"id":"kebab-id","description":"...","rationale":"...","evidence":["quote"]}],
+ "needs": ["short user need statements"],
+ "quotes":[{"id":"q_<chunkIndex>_<n>","speaker":"Name","text":"verbatim <=40 words"}],
+ "meta":{"chunk_index": <int>}
+}
 
-### 🟡 Database & Storage Cleanup
+Rules:
+- Use ONLY text in this chunk.
+- Avoid duplicates: Provided KNOWN_IDS list contains already used pain and feature IDs globally; do not reuse them unless the *exact same* concept appears (then reuse).
+- Prefer concise, specific descriptions.
+- severity scale: 1 trivial, 3 moderate friction, 4 acute, 5 mission-critical.
+- evidence must be verbatim substring.
+- If nothing new, return empty arrays.
+- JSON only.
+`;
+```
 
-- [ ] **Organize database types**
-  - Move all database types to `src/types/database.ts`
-  - Create proper interfaces for all tables
-  - Context: Types scattered across files
+**Update existing prompt:**
+```typescript
+export const interviewScoringSystem = `
+You score Product-Market Fit dimensions using ONLY given JSON and product summary.
+Input JSON may be:
+1) Full extraction with pains, feature_requests, quotes, etc.
+OR
+2) Compressed form with representative_quotes.
 
-- [ ] **Standardize API responses**
-  - Create consistent response formats
-  - Add proper TypeScript interfaces
-  - Context: Inconsistent API response structures
+Use the same rules...
+(Existing content unchanged below)
+...
+`;
+```
 
-## Phase 3: Developer Experience
+#### `/src/lib/schema.ts` (UPDATED)
+**Add new schema:**
+```typescript
+export const ChunkExtractionSchema = z.object({
+  pains: z.array(z.object({
+    id: z.string(),
+    description: z.string(),
+    severity: z.number().int().min(1).max(5),
+    evidence: z.array(z.string()).min(1)
+  })),
+  feature_requests: z.array(z.object({
+    id: z.string(),
+    description: z.string(),
+    rationale: z.string(),
+    evidence: z.array(z.string()).min(1)
+  })),
+  needs: z.array(z.string()),
+  quotes: z.array(z.object({
+    id: z.string(),
+    speaker: z.string(),
+    text: z.string()
+  })),
+  meta: z.object({ chunk_index: z.number() })
+});
+export type ChunkExtraction = z.infer<typeof ChunkExtractionSchema>;
+```
 
-### 🟡 Development Tools
+**Existing schemas remain unchanged** for simple mode compatibility.
 
-- [ ] **Add development utilities**
-  - Create helper functions for common operations
-  - Add debugging utilities
-  - Context: No development helpers
+#### `/src/types/interview.ts` (UPDATED)
+**Add new types:**
+```typescript
+export interface Chunk {
+  interviewId: string;
+  chunkIndex: number;
+  text: string;
+  charStart: number;
+  charEnd: number;
+  speakerStats: Record<string, number>; // token counts per speaker (approx)
+}
 
-- [ ] **Improve error messages**
-  - Add descriptive error messages
-  - Implement better error logging
-  - Context: Generic error messages
+export interface ChunkExtraction {
+  chunkIndex: number;
+  pains: Array<{ id: string; description: string; severity: number; evidence: string[] }>;
+  feature_requests: Array<{ id: string; description: string; rationale: string; evidence: string[] }>;
+  quotes: Array<{ id: string; speaker: string; text: string }>;
+  needs: string[];
+  meta?: Record<string, any>;
+}
 
-- [ ] **Add loading states**
-  - Implement consistent loading patterns
-  - Add skeleton screens where appropriate
-  - Context: Inconsistent loading states
+export interface MergedExtraction {
+  pains: Array<{ id: string; description: string; severity: number; evidence: string[] }>;
+  feature_requests: Array<{ id: string; description: string; rationale: string; evidence: string[] }>;
+  quotes: Array<{ id: string; speaker: string; text: string }>;
+  needs: string[];
+  stats: {
+    totalChunks: number;
+    originalTokenEstimate: number;
+    compressionRatio?: number;
+  };
+}
+```
 
-### 🟡 Code Quality
+## Phase 3: Service Layer Updates
 
-- [ ] **Remove duplicate code**
-  - Extract common utilities
-  - Create shared components
-  - Context: Repeated code across files
+### 🟡 Service Updates
 
-- [ ] **Improve naming conventions**
-  - Use consistent naming patterns
-  - Make variable and function names descriptive
-  - Context: Inconsistent naming
+#### `/src/services/interviewProcess.ts` (UPDATED)
+**Add hierarchical processing:**
+```typescript
+async function extractChunk(
+  productSummary: string,
+  knownIds: { pains: string[]; features: string[] },
+  chunkText: string,
+  chunkIndex: number
+)
 
-- [ ] **Add constants file**
-  - Move magic numbers and strings to constants
-  - Create configuration objects
-  - Context: Hardcoded values scattered throughout
+export async function processInterviewHierarchical(
+  interviewId: string,
+  transcript: string,
+  productSummary: string
+)
+```
+
+**Add unified dispatcher:**
+```typescript
+export async function processInterview(
+  interviewId: string,
+  transcript: string,
+  productSummary: string
+) {
+  const tokenEstimate = approximateTokens(transcript);
+  if (tokenEstimate < 6000) {
+    // ORIGINAL simple path:
+    const extraction = await extractInterview(productSummary, transcript);
+    const scoring = await scoreInterview(productSummary, extraction);
+    return { mode: "simple", extraction, scoring, tokenEstimate };
+  } else {
+    return await processInterviewHierarchical(interviewId, transcript, productSummary);
+  }
+}
+```
+
+**Update scoring function:**
+```typescript
+async function scoreInterviewAny(
+  productSummary: string,
+  payload: InterviewExtraction | CompressedForScoring
+)
+```
+
+## Phase 4: API Layer Updates
+
+### 🟡 API Updates
+
+#### `/src/app/api/interview/route.ts` (UPDATED)
+```typescript
+import { processInterview } from "@/services/interviewProcess";
+
+export async function POST(req: Request) {
+  try {
+    const { rawText } = await req.json();
+    if (!rawText) return new Response(JSON.stringify({ error: "rawText required"}), { status: 400 });
+
+    const productSummary = await getProductContextSummary(/* user */); // existing stub
+    const result = await processInterview("temp-id", rawText, productSummary.summaryText ?? productSummary);
+
+    return new Response(JSON.stringify(result), { status: 200 });
+  } catch (e:any) {
+    console.error(e);
+    return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+  }
+}
+```
+
+## Phase 5: Logging & Debugging
+
+### 🟡 Logging Structure
+```
+[interview 123] mode=hierarchical chunks=9
+[chunk 3] pains=2 features=1
+[merge] pains_total=5 features_total=2 quotes=18 compressionRatio=7.3
+[score] pmf=3.82 confidence=0.74
+```
 
 ## Implementation Guidelines
 
-### Code Organization Best Practices
-- Keep components small and focused (< 200 lines)
-- Extract reusable logic into hooks
-- Use consistent naming conventions
-- Separate concerns (UI, business logic, data)
-- Document complex functions
-- Use proper folder structure
+### Code Organization
+- Keep existing simple mode logic intact
+- Add new utilities in `/src/lib/`
+- Update services to support both modes
+- Maintain backward compatibility
 
-### TypeScript Best Practices
-- Use strict TypeScript configuration
-- Avoid `any` types - create proper interfaces
-- Use discriminated unions for complex state
-- Implement proper error types
-- Use generic types where appropriate
-- Add runtime validation with zod
+### TypeScript Requirements
+- All new functions properly typed
+- Use existing openai client
+- Export necessary types from `/src/types/interview.ts`
+- Ensure TypeScript compiles without errors
 
-### Component Best Practices
-- Use React.memo for expensive components
-- Implement proper loading states
-- Add error boundaries for critical components
-- Keep components pure when possible
-- Use proper prop types
+### Database Strategy
+- **NO real database implementation**
+- Keep in-memory stubs for now
+- Focus on processing pipeline logic
+- Database integration can be added later
 
-### API Best Practices
-- Use consistent response formats
-- Add proper error handling
-- Validate inputs with zod
-- Use descriptive endpoint names
-- Add proper HTTP status codes
+### Processing Flow
+1. **Token Estimation**: `approximateTokens(transcript)`
+2. **Mode Selection**: < 6,000 → simple, ≥ 6,000 → hierarchical
+3. **Simple Mode**: Single extraction → scoring
+4. **Hierarchical Mode**: Chunking → extraction → merge → compression → scoring
 
 ## Success Metrics
 
+### Functionality
+- [ ] Both processing modes work correctly
+- [ ] Automatic mode selection based on token count
+- [ ] Hierarchical processing handles large documents
+- [ ] Simple mode remains unchanged
+- [ ] TypeScript compiles without errors
+
 ### Code Quality
-- [ ] TypeScript strict mode enabled
-- [ ] ESLint passes with no warnings
-- [ ] All components documented
-- [ ] No `any` types in codebase
-
-### Maintainability
-- [ ] Component complexity < 200 lines
-- [ ] No duplicate code
+- [ ] New utilities are properly typed
+- [ ] Existing code remains functional
+- [ ] Clear separation between modes
 - [ ] Consistent error handling
-- [ ] Proper folder structure
+- [ ] Proper logging structure
 
-### Developer Experience
-- [ ] Clear error messages
-- [ ] Consistent loading states
-- [ ] Well-documented functions
-- [ ] Easy to add new features
+### Performance
+- [ ] Token estimation is accurate
+- [ ] Chunking preserves conversation flow
+- [ ] Merging eliminates duplicates effectively
+- [ ] Compression reduces token count appropriately
 
 ## Timeline
 
-- **Week 1**: Phase 1 - Core architecture and type safety
-- **Week 2**: Phase 2 - Code organization and structure
-- **Week 3**: Phase 3 - Developer experience improvements
+- **Day 1**: Create new utility files (`token-estimate.ts`, `chunking.ts`, `extraction-merge.ts`, `compression.ts`)
+- **Day 2**: Update core files (`prompt-templates.ts`, `schema.ts`, `types/interview.ts`)
+- **Day 3**: Update service layer (`interviewProcess.ts`)
+- **Day 4**: Update API layer (`interview/route.ts`)
+- **Day 5**: Testing and debugging
 
-## Folder Structure (Target)
+## Dependencies
 
+### Existing Libraries (No New Dependencies)
+- `openai` - Existing client for API calls
+- `zod` - Existing validation library
+- `next` - Existing framework
+- `typescript` - Existing type system
+
+### File Structure (Target)
 ```
 src/
-├── app/                    # Next.js app directory
-│   ├── api/               # API routes (migrated from pages/api/)
-│   ├── upload/            # Upload page
-│   ├── search/            # Search page
-│   ├── interviews/        # Interviews list
-│   └── analytics/         # Analytics dashboard
-├── components/            # React components
-│   ├── ui/               # Reusable UI components
-│   ├── forms/            # Form components
-│   └── layout/           # Layout components
-├── hooks/                # Custom React hooks
-├── lib/                  # Utility libraries
-│   ├── supabase.ts       # Supabase client
-│   ├── storage.ts        # Storage service
-│   ├── env.ts           # Environment validation
-│   └── utils.ts         # Common utilities
-├── types/                # TypeScript type definitions
-│   ├── database.ts      # Database types
-│   ├── api.ts           # API types
-│   └── common.ts        # Common types
-└── constants/           # Application constants
+├── lib/
+│   ├── token-estimate.ts ⭐ (NEW)
+│   ├── chunking.ts ⭐ (NEW)
+│   ├── extraction-merge.ts ⭐ (NEW)
+│   ├── compression.ts ⭐ (NEW)
+│   ├── prompt-templates.ts (UPDATED)
+│   ├── schema.ts (UPDATED)
+│   └── openai.ts (EXISTING)
+├── services/
+│   └── interviewProcess.ts (UPDATED)
+├── app/api/interview/
+│   └── route.ts (UPDATED)
+└── types/
+    └── interview.ts (UPDATED)
 ```
-
-## Resources
-
-- [Next.js 15 Documentation](https://nextjs.org/docs)
-- [React 19 Best Practices](https://react.dev/learn)
-- [TypeScript Handbook](https://www.typescriptlang.org/docs/)
-- [Zod Documentation](https://zod.dev/)
 
 ---
 
-**Note**: This plan focuses on creating a clean, maintainable codebase for rapid prototyping and development. Security, performance optimization, authentication, and automated testing have been intentionally excluded to reduce complexity. 
+**Note**: This plan focuses on implementing the hierarchical processing pipeline while maintaining backward compatibility with the existing simple mode. All database operations remain as in-memory stubs for rapid prototyping. 

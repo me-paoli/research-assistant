@@ -1,4 +1,4 @@
-import { supabase, STORAGE_BUCKET } from './supabase'
+import { supabase, INTERVIEWS_BUCKET, PRODUCT_DOCUMENTS_BUCKET } from './supabase'
 
 export interface UploadResult {
   success: boolean
@@ -18,19 +18,33 @@ export interface FileMetadata {
 
 export class StorageService {
   /**
-   * Upload a file to Supabase storage
+   * Upload an interview file to Supabase storage
    */
-  static async uploadFile(buffer: Buffer, fileName: string, contentType: string): Promise<UploadResult> {
+  static async uploadInterviewFile(buffer: Buffer, fileName: string, contentType: string): Promise<UploadResult> {
+    return this.uploadFile(buffer, fileName, contentType, INTERVIEWS_BUCKET)
+  }
+
+  /**
+   * Upload a product document file to Supabase storage
+   */
+  static async uploadProductDocument(buffer: Buffer, fileName: string, contentType: string): Promise<UploadResult> {
+    return this.uploadFile(buffer, fileName, contentType, PRODUCT_DOCUMENTS_BUCKET)
+  }
+
+  /**
+   * Upload a file to Supabase storage (generic method)
+   */
+  private static async uploadFile(buffer: Buffer, fileName: string, contentType: string, bucket: string): Promise<UploadResult> {
     try {
       // Generate unique file path
       const fileId = crypto.randomUUID()
       const fileExtension = fileName.split('.').pop()
       const uniqueFileName = `${fileId}.${fileExtension}`
-      const filePath = `uploads/${uniqueFileName}`
+      const filePath = `${uniqueFileName}`
 
       // Upload file to storage
       const { data, error } = await supabase.storage
-        .from(STORAGE_BUCKET)
+        .from(bucket)
         .upload(filePath, buffer, {
           contentType,
           cacheControl: '3600',
@@ -60,23 +74,83 @@ export class StorageService {
   }
 
   /**
-   * Get public URL for a file
+   * Download an interview file from storage
    */
-  static getPublicUrl(filePath: string): string {
+  static async downloadInterviewFile(filePath: string): Promise<Blob | null> {
+    return this.downloadFile(filePath, INTERVIEWS_BUCKET)
+  }
+
+  /**
+   * Download a product document from storage
+   */
+  static async downloadProductDocument(filePath: string): Promise<Blob | null> {
+    return this.downloadFile(filePath, PRODUCT_DOCUMENTS_BUCKET)
+  }
+
+  /**
+   * Download a file from storage (generic method)
+   */
+  private static async downloadFile(filePath: string, bucket: string): Promise<Blob | null> {
+    try {
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .download(filePath)
+
+      if (error) {
+        console.error('Download error:', error)
+        return null
+      }
+
+      return data
+    } catch (error) {
+      console.error('Download failed:', error)
+      return null
+    }
+  }
+
+  /**
+   * Get public URL for an interview file
+   */
+  static getInterviewPublicUrl(filePath: string): string {
     const { data } = supabase.storage
-      .from(STORAGE_BUCKET)
+      .from(INTERVIEWS_BUCKET)
       .getPublicUrl(filePath)
     
     return data.publicUrl
   }
 
   /**
-   * Delete a file from storage
+   * Get public URL for a product document
    */
-  static async deleteFile(filePath: string): Promise<{ success: boolean; error?: string }> {
+  static getProductDocumentPublicUrl(filePath: string): string {
+    const { data } = supabase.storage
+      .from(PRODUCT_DOCUMENTS_BUCKET)
+      .getPublicUrl(filePath)
+    
+    return data.publicUrl
+  }
+
+  /**
+   * Delete an interview file from storage
+   */
+  static async deleteInterviewFile(filePath: string): Promise<{ success: boolean; error?: string }> {
+    return this.deleteFile(filePath, INTERVIEWS_BUCKET)
+  }
+
+  /**
+   * Delete a product document from storage
+   */
+  static async deleteProductDocument(filePath: string): Promise<{ success: boolean; error?: string }> {
+    return this.deleteFile(filePath, PRODUCT_DOCUMENTS_BUCKET)
+  }
+
+  /**
+   * Delete a file from storage (generic method)
+   */
+  private static async deleteFile(filePath: string, bucket: string): Promise<{ success: boolean; error?: string }> {
     try {
       const { error } = await supabase.storage
-        .from(STORAGE_BUCKET)
+        .from(bucket)
         .remove([filePath])
 
       if (error) {
@@ -96,51 +170,44 @@ export class StorageService {
   }
 
   /**
-   * List files in storage
+   * List interview files in storage
    */
-  static async listFiles(folder: string = 'uploads'): Promise<FileMetadata[]> {
+  static async listInterviewFiles(): Promise<FileMetadata[]> {
+    return this.listFiles(INTERVIEWS_BUCKET)
+  }
+
+  /**
+   * List product document files in storage
+   */
+  static async listProductDocuments(): Promise<FileMetadata[]> {
+    return this.listFiles(PRODUCT_DOCUMENTS_BUCKET)
+  }
+
+  /**
+   * List files in storage (generic method)
+   */
+  private static async listFiles(bucket: string): Promise<FileMetadata[]> {
     try {
       const { data, error } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .list(folder)
+        .from(bucket)
+        .list('')
 
       if (error) {
         console.error('List files error:', error)
         return []
       }
 
-      return data.map((file: any) => ({
+      return data.map((file: { id?: string; name: string; metadata?: { size?: number; mimetype?: string }; updated_at?: string }) => ({
         id: file.id || '',
         name: file.name,
         size: file.metadata?.size || 0,
         type: file.metadata?.mimetype || '',
-        path: `${folder}/${file.name}`,
+        path: file.name,
         uploadedAt: file.updated_at || new Date().toISOString()
       }))
     } catch (error) {
       console.error('List files failed:', error)
       return []
-    }
-  }
-
-  /**
-   * Download a file from storage
-   */
-  static async downloadFile(filePath: string): Promise<Blob | null> {
-    try {
-      const { data, error } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .download(filePath)
-
-      if (error) {
-        console.error('Download error:', error)
-        return null
-      }
-
-      return data
-    } catch (error) {
-      console.error('Download failed:', error)
-      return null
     }
   }
 } 

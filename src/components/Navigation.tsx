@@ -1,20 +1,18 @@
-i'use client'
+'use client'
 
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Upload, Search, FileText, BarChart3, Menu, X } from 'lucide-react'
+import { Home, Upload, Search, FileText, BarChart3, Menu, X, User } from 'lucide-react'
 
 export default function Navigation() {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const navItems = [
-    { href: '/', label: 'Home', icon: Home },
-    { href: '/upload', label: 'Upload', icon: Upload },
-    { href: '/search', label: 'Search', icon: Search },
     { href: '/interviews', label: 'Interviews', icon: FileText },
-    { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+    { href: '/insights', label: 'Insights', icon: BarChart3 },
+    { href: '/account', label: 'Account', icon: User },
   ]
 
   return (

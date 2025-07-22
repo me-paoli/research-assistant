@@ -1,8 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { FileText, Calendar, User, Download, Search, Lightbulb } from 'lucide-react'
 import { Interview } from '@/types/database'
+import { FileUploadZone } from '@/components/ui/FileUploadZone'
+import { useFileUpload } from '@/hooks/useFileUpload'
+import { UploadProgressList } from '@/components/ui/UploadProgressList'
+import { Dialog } from '@headlessui/react'
 
 interface SearchResult {
   id: string
@@ -13,6 +17,7 @@ interface SearchResult {
   relevance_score: number
   search_type?: 'hybrid' | 'full_text' | 'semantic'
   highlighted_content: string
+  full_highlighted_content: string
 }
 
 export default function InterviewsPage() {
@@ -22,6 +27,16 @@ export default function InterviewsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
+  const [expandedResults, setExpandedResults] = useState<{ [id: string]: boolean }>({})
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
+  const [showProcessingModal, setShowProcessingModal] = useState(false);
+
+  const {
+    uploads,
+    isUploading,
+    uploadFiles,
+    removeUpload
+  } = useFileUpload()
 
   useEffect(() => {
     async function fetchInterviews() {
@@ -35,6 +50,33 @@ export default function InterviewsPage() {
     }
     fetchInterviews()
   }, [])
+
+  // Determine upload success and error from uploads array
+  const hasUploadSuccess = uploads.some(u => u.status === 'completed')
+  const hasUploadError = uploads.some(u => u.status === 'error')
+  // Refresh interviews after a new upload is completed and close modal
+  useEffect(() => {
+    if (hasUploadSuccess) {
+      (async () => {
+        setLoading(true)
+        const res = await fetch('/api/interviews')
+        const data = await res.json()
+        const fetchedInterviews = data.data?.interviews || []
+        setInterviews(fetchedInterviews)
+        setFilteredInterviews(fetchedInterviews)
+        setLoading(false)
+      })()
+      setIsUploadModalOpen(false)
+    }
+  }, [hasUploadSuccess])
+
+  useEffect(() => {
+    if (searchQuery.trim().length === 0) {
+      setFilteredInterviews(interviews)
+      setSearchResults([])
+      setExpandedResults({})
+    }
+  }, [searchQuery, interviews])
 
   const handleSearch = async (query: string) => {
     if (!query.trim()) {
@@ -145,9 +187,83 @@ export default function InterviewsPage() {
     return insights.slice(0, 3) // Limit to 3 insights
   }
 
+  // Detect in-progress uploads
+  const hasInProgressUpload = uploads.some(u => u.status === 'uploading' || u.status === 'processing')
+  const processingUploads = uploads.filter(u => u.status === 'uploading' || u.status === 'processing');
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       <div className="container mx-auto px-4 py-8">
+        {/* New Interview Button and Upload Modal */}
+        <div className="flex justify-end mb-6">
+          <button
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow"
+            onClick={() => setIsUploadModalOpen(true)}
+          >
+            New Interview
+          </button>
+        </div>
+        {/* In-Progress Banner */}
+        {hasInProgressUpload && (
+          <div className="mb-4 flex items-center justify-center">
+            <button
+              className="bg-blue-100 text-blue-800 px-4 py-2 rounded shadow text-sm font-medium hover:bg-blue-200 transition"
+              onClick={() => setShowProcessingModal(true)}
+              aria-label="Show processing interviews"
+            >
+              Interview upload/processing in progress…
+            </button>
+          </div>
+        )}
+        {/* Processing Interviews Modal */}
+        <Dialog open={showProcessingModal} onClose={() => setShowProcessingModal(false)} className="fixed z-50 inset-0 overflow-y-auto">
+          <div className="fixed inset-0 bg-black opacity-30" aria-hidden="true" />
+          <div className="flex items-center justify-center min-h-screen px-4">
+            <Dialog.Panel className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-auto p-6 z-10">
+              <Dialog.Title className="text-lg font-semibold mb-4">Interviews Processing</Dialog.Title>
+              {processingUploads.length > 0 ? (
+                <ul className="divide-y divide-gray-200 mb-4">
+                  {processingUploads.map((u, idx) => (
+                    <li key={u.id || idx} className="py-2 flex items-center justify-between">
+                      <span className="text-gray-800 font-medium">{u.file_name}</span>
+                      <span className={`ml-2 px-2 py-0.5 rounded text-xs font-semibold ${u.status === 'uploading' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'}`}>{u.status === 'uploading' ? 'Uploading' : 'Processing'}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-gray-600 mb-4">No interviews currently processing.</div>
+              )}
+              <button
+                className="mt-2 text-blue-600 hover:text-blue-900 text-sm font-medium"
+                onClick={() => setShowProcessingModal(false)}
+              >
+                Close
+              </button>
+            </Dialog.Panel>
+          </div>
+        </Dialog>
+        <Dialog open={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} className="fixed z-50 inset-0 overflow-y-auto">
+          <div className="fixed inset-0 bg-black opacity-30" aria-hidden="true" />
+          <div className="flex items-center justify-center min-h-screen px-4">
+            <Dialog.Panel className="relative bg-white rounded-lg shadow-xl max-w-lg w-full mx-auto p-6 z-10">
+              <Dialog.Title className="text-lg font-semibold mb-4">Upload New Interview</Dialog.Title>
+              <FileUploadZone onDrop={uploadFiles} isUploading={isUploading} />
+              <UploadProgressList uploads={uploads} onRemove={removeUpload} />
+              {hasUploadError && (
+                <div className="mt-2 text-red-600 text-sm">One or more uploads failed. Please try again.</div>
+              )}
+              {hasUploadSuccess && (
+                <div className="mt-2 text-green-600 text-sm">Upload successful! Interview will appear below.</div>
+              )}
+              <button
+                className="mt-4 text-gray-600 hover:text-gray-900 text-sm"
+                onClick={() => setIsUploadModalOpen(false)}
+              >
+                Cancel
+              </button>
+            </Dialog.Panel>
+          </div>
+        </Dialog>
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Interviews</h1>
@@ -168,12 +284,14 @@ export default function InterviewsPage() {
               placeholder="Search interviews by participant name, content, or keywords..."
               value={searchQuery}
               onChange={(e) => {
-                setSearchQuery(e.target.value)
-                if (e.target.value.trim()) {
-                  handleSearch(e.target.value)
+                const value = e.target.value
+                setSearchQuery(value)
+                if (value.trim().length > 0) {
+                  handleSearch(value)
                 } else {
                   setSearchResults([])
                   setFilteredInterviews(interviews)
+                  setExpandedResults({})
                 }
               }}
             />
@@ -184,161 +302,181 @@ export default function InterviewsPage() {
         <div className="max-w-6xl mx-auto">
           {loading ? (
             <div className="text-center text-gray-600 py-12">Loading interviews...</div>
-          ) : searchQuery && searchResults.length > 0 ? (
-            // Search Results View - Show all results from hybrid search
-            <div>
-              <div className="mb-6">
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                  Search Results for "{searchQuery}"
-                </h2>
-                <p className="text-gray-600">
-                  Found {searchResults.length} results
-                </p>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {searchResults.map((result) => (
-                  <div key={result.id} className="bg-white rounded-lg shadow p-6 flex flex-col gap-2">
-                    <div className="text-sm text-gray-500 mb-1">
-                      <span className="font-semibold">Interview:</span> {result.interview?.subject_name || 'Unknown'}
-                    </div>
-                    <div className="text-gray-800 whitespace-pre-line mb-2">
-                      {result.highlighted_content || result.content}
-                    </div>
-                    <div className="flex flex-wrap gap-2 text-xs text-gray-500">
-                      <span>Chunk #{result.chunk_index}</span>
-                      <span>Relevance: {result.relevance_score?.toFixed(2)}</span>
-                      <span>Type: {result.search_type}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : searchQuery && searchResults.length === 0 ? (
-            <div className="text-center text-gray-600 py-12">
-              No matches found for "{searchQuery}". Try different keywords or check spelling.
-            </div>
-          ) : filteredInterviews.length === 0 ? (
-            <div className="text-center text-gray-600 py-12">
-              No interviews found. Upload user interviews to get started.
-            </div>
-          ) : (
-            // Regular Interviews List View
-            <div className="space-y-6">
-              {filteredInterviews.map((interview) => {
-                const insights = generateInsights(interview)
-                
-                return (
-                  <div key={interview.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                          {interview.subject_name || interview.title || interview.file_name}
-                        </h3>
-                        <div className="flex items-center space-x-4 text-sm text-gray-600 mb-3">
-                          <div className="flex items-center space-x-1">
-                            <User className="w-4 h-4" />
-                            <span>{interview.subject_name || 'N/A'}</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <Calendar className="w-4 h-4" />
-                            <span>{formatDate(interview.interview_date || interview.created_at)}</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <FileText className="w-4 h-4" />
-                            <span>{formatFileSize(interview.file_size || 0)}</span>
-                          </div>
-                        </div>
+          ) : searchQuery.trim().length > 0 ? (
+            searchResults.length > 0 ? (
+              // Search Results View
+              <div>
+                <div className="mb-6">
+                  <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                    Search Results for "{searchQuery}"
+                  </h2>
+                  <p className="text-gray-600">
+                    Found {searchResults.length} results
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {searchResults.map((result) => (
+                    <div key={result.id} className="bg-white rounded-lg shadow p-6 flex flex-col gap-2">
+                      <div className="text-sm text-gray-500 mb-1">
+                        <span className="font-semibold">Interview:</span> {result.interview?.subject_name || 'Unknown'}
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSentimentColor(interview.sentiment)}`}>
-                          {getSentimentLabel(interview.sentiment)}
-                        </span>
-                        <div className="text-right">
-                          <div className="text-sm text-gray-600">Fit Score</div>
-                          <div className="text-lg font-semibold text-blue-600">
-                            {typeof interview.pmf_score === 'number' ? `${interview.pmf_score}%` : 'N/A'}
-                          </div>
-                        </div>
+                      <div className="text-gray-800 whitespace-pre-line mb-2">
+                        {expandedResults[result.id] ? (
+                          <span
+                            dangerouslySetInnerHTML={{ __html: result.full_highlighted_content }}
+                          />
+                        ) : (
+                          <span
+                            dangerouslySetInnerHTML={{ __html: result.highlighted_content }}
+                          />
+                        )}
                       </div>
-                    </div>
-
-                    <p className="text-gray-700 mb-4 leading-relaxed">
-                      {interview.summary || interview.content?.substring(0, 200) || 'No summary available.'}
-                    </p>
-
-                    {/* Key Quote */}
-                    {interview.key_quote && (
-                      <div className="mb-4 p-4 bg-gray-50 rounded-lg border-l-4 border-gray-300">
-                        <h4 className="text-sm font-medium text-gray-900 mb-2">Key Quote:</h4>
-                        <blockquote className="text-sm text-gray-700 italic leading-relaxed">
-                          "{interview.key_quote}"
-                        </blockquote>
-                      </div>
-                    )}
-
-                    {/* Key Insights */}
-                    {insights.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
-                          <Lightbulb className="w-4 h-4 mr-2 text-yellow-500" />
-                          Key Insights:
-                        </h4>
-                        <ul className="space-y-1">
-                          {insights.map((insight, index) => (
-                            <li key={index} className="text-sm text-gray-600 flex items-start">
-                              <span className="text-yellow-500 mr-2">•</span>
-                              {insight}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {/* Recommendations Section */}
-                    {interview.recommendations && (
-                      (() => {
-                        try {
-                          const recommendations = typeof interview.recommendations === 'string' 
-                            ? JSON.parse(interview.recommendations) 
-                            : interview.recommendations;
-                          
-                          if (Array.isArray(recommendations) && recommendations.length > 0) {
-                            return (
-                              <div className="mb-4">
-                                <h4 className="text-sm font-medium text-gray-900 mb-2">Recommendations to Improve PMF:</h4>
-                                <ul className="space-y-1">
-                                  {recommendations.map((recommendation: string, index: number) => (
-                                    <li key={index} className="text-sm text-gray-600 flex items-start">
-                                      <span className="text-blue-500 mr-2">•</span>
-                                      {recommendation}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            );
-                          }
-                        } catch (error) {
-                          console.error('Error parsing recommendations:', error);
+                      <button
+                        className="text-blue-600 text-xs underline self-start mb-2"
+                        onClick={() =>
+                          setExpandedResults(prev => ({
+                            ...prev,
+                            [result.id]: !prev[result.id]
+                          }))
                         }
-                        return null;
-                      })()
-                    )}
-
-                    <div className="flex items-center justify-end">
-                      {interview.file_path && (
-                        <button
-                          className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center"
-                          onClick={() => window.open(interview.file_path, '_blank')}
-                        >
-                          <Download className="w-4 h-4 mr-1" />
-                          Download
-                        </button>
-                      )}
+                      >
+                        {expandedResults[result.id] ? 'Show less' : 'Show more'}
+                      </button>
                     </div>
-                  </div>
-                )
-              })}
-            </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center text-gray-600 py-12">
+                No matches found for "{searchQuery}". Try different keywords or check spelling.
+              </div>
+            )
+          ) : (
+            filteredInterviews.length === 0 ? (
+              <div className="text-center text-gray-600 py-12">
+                No interviews found. Upload user interviews to get started.
+              </div>
+            ) : (
+              // Regular Interviews List View
+              <div className="space-y-6">
+                {filteredInterviews
+                  .filter(interview => interview.status === 'complete' || interview.status === 'completed')
+                  .map((interview) => {
+                  const insights = generateInsights(interview)
+                  
+                  return (
+                    <div key={interview.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                            {interview.subject_name || interview.title || interview.file_name}
+                          </h3>
+                          <div className="flex items-center space-x-4 text-sm text-gray-600 mb-3">
+                            <div className="flex items-center space-x-1">
+                              <User className="w-4 h-4" />
+                              <span>{interview.subject_name || 'N/A'}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <Calendar className="w-4 h-4" />
+                              <span>{formatDate(interview.interview_date || interview.created_at)}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <FileText className="w-4 h-4" />
+                              <span>{formatFileSize(interview.file_size || 0)}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSentimentColor(interview.sentiment)}`}>
+                            {getSentimentLabel(interview.sentiment)}
+                          </span>
+                          <div className="text-right">
+                            <div className="text-sm text-gray-600">Fit Score</div>
+                            <div className="text-lg font-semibold text-blue-600">
+                              {typeof interview.pmf_score === 'number' ? `${interview.pmf_score}%` : 'N/A'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="text-gray-700 mb-4 leading-relaxed">
+                        {interview.summary || interview.content?.substring(0, 200) || 'No summary available.'}
+                      </p>
+
+                      {/* Key Quote */}
+                      {interview.key_quote && (
+                        <div className="mb-4 p-4 bg-gray-50 rounded-lg border-l-4 border-gray-300">
+                          <h4 className="text-sm font-medium text-gray-900 mb-2">Key Quote:</h4>
+                          <blockquote className="text-sm text-gray-700 italic leading-relaxed">
+                            "{interview.key_quote}"
+                          </blockquote>
+                        </div>
+                      )}
+
+                      {/* Key Insights */}
+                      {insights.length > 0 && (
+                        <div className="mb-4">
+                          <h4 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
+                            <Lightbulb className="w-4 h-4 mr-2 text-yellow-500" />
+                            Key Insights:
+                          </h4>
+                          <ul className="space-y-1">
+                            {insights.map((insight, index) => (
+                              <li key={index} className="text-sm text-gray-600 flex items-start">
+                                <span className="text-yellow-500 mr-2">•</span>
+                                {insight}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Recommendations Section */}
+                      {interview.recommendations && (
+                        (() => {
+                          try {
+                            const recommendations = typeof interview.recommendations === 'string' 
+                              ? JSON.parse(interview.recommendations) 
+                              : interview.recommendations;
+                            
+                            if (Array.isArray(recommendations) && recommendations.length > 0) {
+                              return (
+                                <div className="mb-4">
+                                  <h4 className="text-sm font-medium text-gray-900 mb-2">Recommendations to Improve PMF:</h4>
+                                  <ul className="space-y-1">
+                                    {recommendations.map((recommendation: string, index: number) => (
+                                      <li key={index} className="text-sm text-gray-600 flex items-start">
+                                        <span className="text-blue-500 mr-2">•</span>
+                                        {recommendation}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              );
+                            }
+                          } catch (error) {
+                            console.error('Error parsing recommendations:', error);
+                          }
+                          return null;
+                        })()
+                      )}
+
+                      <div className="flex items-center justify-end">
+                        {interview.file_path && (
+                          <button
+                            className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center"
+                            onClick={() => window.open(interview.file_path, '_blank')}
+                          >
+                            <Download className="w-4 h-4 mr-1" />
+                            Download
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
           )}
         </div>
       </div>

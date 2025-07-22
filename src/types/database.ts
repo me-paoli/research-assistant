@@ -1,20 +1,30 @@
 export interface Interview {
   id: string
-  title: string
-  content: string
+  title?: string
+  content?: string
   file_path?: string
   file_name?: string
   file_size?: number
   file_type?: string
   created_at: string
   updated_at: string
-  tags: string[]
+  tags?: string[]
   participant_name?: string
   interview_date?: string
   duration?: number
   summary?: string
   product_fit_score?: number
   sentiment_score?: number
+  // Additional properties used in components
+  subject_name?: string
+  keywords?: string[]
+  sentiment?: number
+  pmf_score?: number
+  status?: string
+  transcript?: string
+  recommendations?: string[]
+  key_insights?: string[]
+  key_quote?: string
 }
 
 export interface Keyword {
@@ -70,9 +80,34 @@ export interface SearchResult {
 }
 
 export interface UploadProgress {
+  id: string
   file_name: string
   progress: number
   status: 'uploading' | 'processing' | 'completed' | 'error'
   error?: string
-  interview?: any // AI-extracted interview metadata
+  interview?: Interview // AI-extracted interview metadata
+}
+
+// Product documentation interface (file metadata)
+export interface ProductDocumentation {
+  id: string
+  name: string
+  description: string
+  file_path: string
+  file_name: string
+  file_size: number
+  file_type: string
+  created_at: string
+  updated_at: string
+}
+
+// Updated product context interface
+export interface ProductContext {
+  id: string
+  name: string
+  description: string
+  url?: string
+  additional_documents?: ProductDocumentation[]
+  created_at: string
+  updated_at: string
 } 
