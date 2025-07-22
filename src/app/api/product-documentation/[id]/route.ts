@@ -39,7 +39,7 @@ async function deleteProductDocumentationHandler(
 
     // Delete from storage
     if (docToDelete.file_path) {
-      const { error: storageError } = await StorageService.deleteFile(docToDelete.file_path)
+      const { error: storageError } = await StorageService.deleteProductDocument(docToDelete.file_path)
       if (storageError) {
         console.error('[Product Documentation] Failed to delete file from storage:', storageError)
         // Continue with database deletion even if storage deletion fails
