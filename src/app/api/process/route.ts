@@ -6,6 +6,7 @@ import { createSuccessResponse } from '@/lib/errors'
 import { ProcessResponse } from '@/types/api'
 import env from '@/lib/env'
 import { processInterviewChunks } from '@/lib/chunking-service'
+import { extractTextFromPdfBuffer } from '@/lib/pdf-extraction'
 
 const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY })
 
@@ -167,7 +168,7 @@ async function processHandler(request: NextRequest): Promise<NextResponse<Proces
       } else if (fileName.endsWith('.pdf')) {
         // For PDF files
         try {
-          textContent = await import('../insights/route').then(m => m.extractTextFromPdfBuffer(Buffer.from(fileBuffer)));
+          textContent = await extractTextFromPdfBuffer(Buffer.from(fileBuffer));
           console.log(`[AI] Successfully extracted PDF content (${textContent.length} characters)`)
         } catch (pdfError) {
           console.error('[AI] Failed to extract PDF:', pdfError)
@@ -282,7 +283,7 @@ ${textContent}`
                 if (doc.file_type === 'application/pdf') {
                   try {
                     console.log(`[AI] Processing PDF document: ${doc.name} (${buffer.length} bytes)`);
-                    const text = await import('../insights/route').then(m => m.extractTextFromPdfBuffer(buffer));
+                    const text = await extractTextFromPdfBuffer(buffer);
                     console.log(`[AI] Successfully extracted ${text.length} characters from ${doc.name}`);
                     return `DOCUMENT: ${doc.name}\n${text}\n\n`
                   } catch (pdfError) {
