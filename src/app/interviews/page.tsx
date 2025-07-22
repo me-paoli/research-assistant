@@ -314,7 +314,7 @@ export default function InterviewsPage() {
                 <div>
                   <div className="mb-8">
                     <h2 className="text-heading-2 text-gray-900 mb-3">
-                      Search Results for "{searchQuery}"
+                      Search Results for &quot;{searchQuery}&quot;
                     </h2>
                     <p className="text-body text-gray-600">
                       Found {searchResults.length} results
@@ -354,7 +354,7 @@ export default function InterviewsPage() {
                 </div>
               ) : (
                 <div className="text-center text-gray-600 py-12">
-                  No matches found for "{searchQuery}". Try different keywords or check spelling.
+                  No matches found for &quot;{searchQuery}&quot;. Try different keywords or check spelling.
                 </div>
               )
             ) : (
@@ -414,7 +414,7 @@ export default function InterviewsPage() {
                           <div className="mb-6 p-4 bg-gray-50 rounded-lg border-l-4 border-gray-300">
                             <h4 className="text-sm font-medium text-gray-900 mb-2">Key Quote:</h4>
                             <blockquote className="text-sm text-gray-700 italic leading-relaxed">
-                              "{interview.key_quote}"
+                              &quot;{interview.key_quote}&quot;
                             </blockquote>
                           </div>
                         )}

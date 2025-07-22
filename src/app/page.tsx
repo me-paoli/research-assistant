@@ -1,6 +1,6 @@
 "use client"
 
-import { Upload, Search, FileText, BarChart3, ArrowRight, Settings } from 'lucide-react'
+import { Upload, FileText, BarChart3, ArrowRight, Settings } from 'lucide-react'
 import Link from 'next/link'
 
 export default function HomePage() {

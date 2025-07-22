@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react';
-import { FileText, Target, Smile, Frown, Meh } from 'lucide-react';
+import { FileText, Target } from 'lucide-react';
 import { Interview } from '@/types/database';
 import { Line } from 'react-chartjs-2';
 import {

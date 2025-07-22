@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { withErrorHandler, ValidationError, InternalServerError } from '@/lib/errors'
 import { createSuccessResponse } from '@/lib/errors'
 import { SearchResponse } from '@/types/api'
-import { extractTextFromPdfBuffer } from '../insights/route';
+import { extractTextFromPdfBuffer } from '@/lib/pdf-extraction'
 
 async function searchHandler(request: NextRequest): Promise<NextResponse<SearchResponse>> {
   if (request.method !== 'GET') {
