@@ -120,7 +120,7 @@ export function ProductContextForm() {
           <input
             id="product-name"
             type="text"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-gray-900"
+            className="w-full px-3 py-2 border border-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-600 text-gray-900 bg-white"
             value={productName}
             onChange={e => setProductName(e.target.value)}
             placeholder="e.g. MyApp"
@@ -137,7 +137,7 @@ export function ProductContextForm() {
           </label>
           <textarea
             id="product-description"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-gray-900 resize-vertical"
+            className="w-full px-3 py-2 border border-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-600 text-gray-900 resize-vertical bg-white"
             value={productDescription}
             onChange={e => setProductDescription(e.target.value)}
             placeholder="Short description of your product"
@@ -156,7 +156,7 @@ export function ProductContextForm() {
           <input
             id="product-url"
             type="url"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-gray-900"
+            className="w-full px-3 py-2 border border-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-600 text-gray-900 bg-white"
             value={productUrl}
             onChange={e => setProductUrl(e.target.value)}
             placeholder="https://yourproduct.com"
