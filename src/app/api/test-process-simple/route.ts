@@ -88,7 +88,8 @@ ${textContent.substring(0, 1000)}`
     return createSuccessResponse({ 
       status: 'success', 
       response: responseText,
-      textLength: textContent.length
+      textLength: textContent.length,
+      error: ''
     })
 
   } catch (error) {

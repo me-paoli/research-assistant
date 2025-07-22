@@ -42,7 +42,8 @@ async function testProductUploadHandler(request: NextRequest) {
       uploadResult,
       bucket: PRODUCT_DOCUMENTS_BUCKET,
       filesInBucket: files?.length || 0,
-      listError: listError?.message
+      listError: listError?.message,
+      error: ''
     })
   } catch (error) {
     console.error('[TEST] Product upload test failed:', error)

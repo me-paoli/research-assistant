@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     console.log('[TEST] Attempting to upload test file')
     
     // Upload to Supabase storage
-    const uploadResult = await StorageService.uploadFile(buffer, 'test-file.txt', 'text/plain')
+    const uploadResult = await StorageService.uploadInterviewFile(buffer, 'test-file.txt', 'text/plain')
     
     console.log('[TEST] Upload result:', uploadResult)
     

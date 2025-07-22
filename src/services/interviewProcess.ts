@@ -183,7 +183,7 @@ export async function processInterviewHierarchical(
   const compressed = compressForScoring(merged, productSummary);
 
   // Score the compressed data
-  const scoring = await scoreInterviewAny(productSummary, compressed as Record<string, unknown>);
+  const scoring = await scoreInterviewAny(productSummary, compressed as unknown as Record<string, unknown>);
   console.log(`[score] pmf=${scoring.pmf_score || 'N/A'} confidence=${scoring.confidence || 'N/A'}`);
 
   return {
