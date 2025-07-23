@@ -58,7 +58,13 @@ export function ProductContextForm() {
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium text-gray-900">Current Product Context</h3>
             <button
-              onClick={handleEdit}
+              onClick={() => {
+                if (!user) {
+                  window.dispatchEvent(new CustomEvent('open-login-modal'))
+                  return
+                }
+                handleEdit()
+              }}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               Edit

@@ -56,6 +56,10 @@ export function ProductDocumentationUpload() {
   }
 
   const handleDelete = async (id: string) => {
+    if (!user) {
+      window.dispatchEvent(new CustomEvent('open-login-modal'))
+      return
+    }
     if (confirm('Are you sure you want to delete this documentation?')) {
       await deleteDocumentation(id)
     }

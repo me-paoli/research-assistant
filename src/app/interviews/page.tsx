@@ -11,6 +11,7 @@ import { InterviewCard } from '@/components/ui/InterviewCard'
 import { Toast } from '@/components/ui/Toast'
 import { Dialog } from '@headlessui/react'
 import { supabase } from '@/lib/supabase'
+import { useAuthContext } from '@/context/AuthContext'
 
 interface SearchResult {
   id: string
@@ -42,6 +43,8 @@ export default function InterviewsPage() {
     uploadFiles,
     removeUpload
   } = useFileUpload()
+
+  const { user } = useAuthContext()
 
   // Auto-close modal when uploads start
   useEffect(() => {
@@ -292,7 +295,13 @@ export default function InterviewsPage() {
           <div className="flex justify-end mb-8">
             <button
               className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-sm transition-colors flex items-center space-x-2"
-              onClick={() => setIsUploadModalOpen(true)}
+              onClick={() => {
+                if (!user) {
+                  window.dispatchEvent(new CustomEvent('open-login-modal'))
+                  return
+                }
+                setIsUploadModalOpen(true)
+              }}
             >
               <Plus className="w-5 h-5" />
               <span>New Interview</span>

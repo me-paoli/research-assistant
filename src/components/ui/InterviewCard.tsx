@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { FileText, Calendar, User, Download, ChevronDown, ChevronUp, Lightbulb, Trash2 } from 'lucide-react'
 import { Interview } from '@/types/database'
+import { useAuthContext } from '@/context/AuthContext'
 
 interface InterviewCardProps {
   interview: Interview
@@ -25,9 +26,14 @@ export function InterviewCard({
 }: InterviewCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const { user } = useAuthContext()
   const insights = generateInsights(interview)
 
   const handleDelete = async () => {
+    if (!user) {
+      window.dispatchEvent(new CustomEvent('open-login-modal'))
+      return
+    }
     if (!onDelete || isDeleting) return
     
     if (confirm('Are you sure you want to delete this interview? This action cannot be undone.')) {
