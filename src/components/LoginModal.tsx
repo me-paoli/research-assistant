@@ -139,7 +139,7 @@ export default function LoginModal() {
           )}
           {mode === 'signin' ? (
             <div>
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <button
                 className="text-blue-600 hover:underline"
                 onClick={() => { setMode('signup'); setLocalError(null); setSignupSuccess(false); setMagicLinkSent(false); setPassword('') }}

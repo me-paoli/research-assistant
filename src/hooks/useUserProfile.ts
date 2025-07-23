@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuthContext } from '@/context/AuthContext'
 import { supabase } from '@/lib/supabase'
 
@@ -20,17 +20,7 @@ export function useUserProfile() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Load profile on mount or when user changes
-  useEffect(() => {
-    if (user) {
-      loadProfile()
-    } else {
-      setProfile(null)
-      setLoading(false)
-    }
-  }, [user])
-
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
     if (!user) return
     
     try {
@@ -57,7 +47,12 @@ export function useUserProfile() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [user])
+
+  // Load profile on mount or when user changes
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
 
   const saveProfile = async (displayName: string, organization: string) => {
     if (!user) return

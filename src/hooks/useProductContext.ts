@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 
 interface ProductContext {
@@ -28,24 +28,6 @@ export function useProductContext() {
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', message: string } | null>(null)
 
-  // Load existing product context on mount
-  useEffect(() => {
-    loadProductContext()
-    
-    // Test authentication
-    const testAuth = async () => {
-      try {
-        const headers = await getAuthHeaders()
-        const res = await fetch('/api/test-auth', { headers })
-        const data = await res.json()
-        console.log('Auth test result:', data)
-      } catch (error) {
-        console.error('Auth test error:', error)
-      }
-    }
-    testAuth()
-  }, [])
-
   const getAuthHeaders = async () => {
     const { data: { session } } = await supabase.auth.getSession()
     const token = session?.access_token
@@ -62,7 +44,7 @@ export function useProductContext() {
     return headers
   }
 
-  const loadProductContext = async () => {
+  const loadProductContext = useCallback(async () => {
     try {
       console.log('=== LOADING PRODUCT CONTEXT ===')
       const headers = await getAuthHeaders()
@@ -102,7 +84,25 @@ export function useProductContext() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, []);
+
+  // Load existing product context on mount
+  useEffect(() => {
+    loadProductContext()
+    
+    // Test authentication
+    const testAuth = async () => {
+      try {
+        const headers = await getAuthHeaders()
+        const res = await fetch('/api/test-auth', { headers })
+        const data = await res.json()
+        console.log('Auth test result:', data)
+      } catch (error) {
+        console.error('Auth test error:', error)
+      }
+    }
+    testAuth()
+  }, [loadProductContext]);
 
   const saveProductContext = async (context: ProductContext) => {
     setIsSaving(true)

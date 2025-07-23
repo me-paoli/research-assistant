@@ -20,40 +20,6 @@ export function useFileUpload() {
   const [isUploading, setIsUploading] = useState(false)
   const pollingIntervals = useRef<{ [key: string]: NodeJS.Timeout }>({})
 
-  // Load persisted upload progress on mount
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(UPLOAD_PROGRESS_KEY)
-      if (saved) {
-        const savedUploads: UploadProgress[] = JSON.parse(saved)
-        // Only restore uploads that are still processing
-        const activeUploads = savedUploads.filter(u => 
-          u.status === 'uploading' || u.status === 'processing'
-        )
-        if (activeUploads.length > 0) {
-          setUploads(activeUploads)
-          // Restart polling for processing uploads
-          activeUploads.forEach(upload => {
-            if (upload.interview?.id && upload.status === 'processing') {
-              pollInterviewStatus(upload.interview.id, upload.file_name)
-            }
-          })
-        }
-      }
-    } catch (error) {
-      console.error('Error loading saved upload progress:', error)
-    }
-  }, [])
-
-  // Save upload progress to localStorage whenever it changes
-  useEffect(() => {
-    try {
-      localStorage.setItem(UPLOAD_PROGRESS_KEY, JSON.stringify(uploads))
-    } catch (error) {
-      console.error('Error saving upload progress:', error)
-    }
-  }, [uploads])
-
   /**
    * Get authentication headers for API requests
    */
@@ -145,6 +111,40 @@ export function useFileUpload() {
       }
     }, 3000)
   }, [getAuthHeaders])
+
+  // Load persisted upload progress on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(UPLOAD_PROGRESS_KEY)
+      if (saved) {
+        const savedUploads: UploadProgress[] = JSON.parse(saved)
+        // Only restore uploads that are still processing
+        const activeUploads = savedUploads.filter(u => 
+          u.status === 'uploading' || u.status === 'processing'
+        )
+        if (activeUploads.length > 0) {
+          setUploads(activeUploads)
+          // Restart polling for processing uploads
+          activeUploads.forEach(upload => {
+            if (upload.interview?.id && upload.status === 'processing') {
+              pollInterviewStatus(upload.interview.id, upload.file_name)
+            }
+          })
+        }
+      }
+    } catch (error) {
+      console.error('Error loading saved upload progress:', error)
+    }
+  }, [pollInterviewStatus])
+
+  // Save upload progress to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(UPLOAD_PROGRESS_KEY, JSON.stringify(uploads))
+    } catch (error) {
+      console.error('Error saving upload progress:', error)
+    }
+  }, [uploads])
 
   /**
    * Uploads files to the server and starts processing

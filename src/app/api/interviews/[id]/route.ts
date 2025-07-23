@@ -69,11 +69,19 @@ async function deleteInterviewHandler(request: NextRequest, { params }: { params
   }
 }
 
-export const DELETE = async (request: NextRequest, { params }: { params: { id: string } }) => {
+export const DELETE = async (request: NextRequest) => {
   console.log('=== withErrorHandler START ===')
   console.log('Request method:', request.method)
   console.log('Request URL:', request.url)
-  
+
+  // Extract id param from the URL
+  const url = request.nextUrl || new URL(request.url)
+  const id = url.pathname.split('/').pop()
+  if (!id) {
+    return createErrorResponse(new ValidationError('Interview ID is required'))
+  }
+  const params = { id }
+
   try {
     console.log('=== CALLING HANDLER ===')
     const result = await deleteInterviewHandler(request, { params })
@@ -83,11 +91,11 @@ export const DELETE = async (request: NextRequest, { params }: { params: { id: s
     console.error('=== withErrorHandler ERROR ===')
     console.error('API Error:', error)
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack')
-    
+
     if (error instanceof ApiError) {
       return createErrorResponse(error)
     }
-    
+
     return createErrorResponse(
       new InternalServerError(error instanceof Error ? error.message : 'Unknown error')
     )
