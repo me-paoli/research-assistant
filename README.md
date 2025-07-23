@@ -4,15 +4,16 @@ A modern, secure platform for uploading, managing, and analyzing research interv
 
 ## Features
 
-- **🔒 Auth-Gated Actions** – All uploads, edits, deletes, and form submissions require authentication. Unauthenticated users are prompted to sign in/sign up.
-- **📁 File Upload** – Upload interviews and product documentation (PDF, DOCX) to user-specific folders in Supabase Storage
-- **🧠 AI Insights** – OpenAI-powered aggregate insights, trends, and recommendations based on your interviews and product context
-- **🔍 Search** – Hybrid semantic and keyword search with relevance ranking
-- **📊 Analytics** – Sentiment analysis, PMF scoring, and trend visualization
-- **☁️ Secure Storage** – Supabase Storage with Row Level Security (RLS) and JWT-authenticated access
-- **🧾 Product Context** – Add product details and upload supporting documentation for more contextualized AI analysis
-- **🧑‍💼 Interview Management** – Browse, search, and manage your interviews with full CRUD (create, read, update, delete)
-- **⚡️ Vercel-Ready** – Instant deployment with environment variable support
+- **🔒 Auth-Gated Actions** – All uploads, deletes, edits, and form submissions require authentication
+- **📄 Interview Upload & Management** – Upload, view, and manage research interviews (PDF, DOCX) with user-specific storage and RLS
+- **🧠 AI Analysis at Multiple Levels**
+  - **Individual Interview Analysis:** Get AI-generated summaries and key insights for each uploaded interview
+  - **Aggregate Insights:** Generate trends, surprises, and actionable recommendations across all your interviews and documentation
+- **📚 Product Context & Documentation** – Add product details and upload supporting docs for richer analysis
+- **🔍 Flexible Search**
+  - **Semantic Search:** Find relevant content using meaning-based (vector) search powered by AI embeddings
+  - **Keyword Search:** Locate documents and insights using traditional keyword matching
+- **⚡ Fast, Accessible UI** – Modern, accessible design with responsive layout and high-contrast text
 
 ## Architecture Overview
 
@@ -34,6 +35,18 @@ A modern, secure platform for uploading, managing, and analyzing research interv
 - **Backend/API**: Next.js API routes, Supabase client (JWT-auth)
 - **Storage**: Supabase Storage (user-specific folders, RLS)
 - **AI**: OpenAI API for insights and recommendations
+
+## Retrieval-Augmented Generation (RAG) Architecture
+
+This app implements a Retrieval-Augmented Generation (RAG) pipeline for research interview analysis:
+
+- **Retrieval:** When a user requests insights or performs a search, the app fetches relevant interview and documentation chunks from Supabase Storage and Database, filtered by the user's query and context.
+- **Augmentation:** The retrieved content is injected directly into the prompt sent to OpenAI's API, along with any product context or documentation the user has provided.
+- **Generation:** OpenAI generates structured insights, summaries, or answers using only the provided context, ensuring results are grounded in the user's own data and not generic or hallucinated.
+
+**AI analysis is performed at both the individual interview level (per-interview summaries and insights) and the aggregate level (cross-interview trends, surprises, and recommendations).**
+
+This approach enables accurate, user-specific AI insights while maintaining privacy and security. All AI-powered features (insights, search, summaries) are based strictly on the user's uploaded and retrieved content.
 
 ## Authentication & Security
 
