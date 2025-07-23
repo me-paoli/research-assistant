@@ -160,7 +160,7 @@ ${text}`
     console.error('Error fetching product context:', error)
   }
 
-  const prompt = `You are an expert product manager analyzing user research data. Based on the following interview summaries, key insights, and important points from transcripts, generate a JSON object with these keys: trends (recurring points), surprises (unique or unexpected feedback), and recommendations (3-5 actionable suggestions to improve the product).\n\n${productContext}${productDocumentation}INTERVIEW SUMMARIES:\n${summaries.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n\nKEY INSIGHTS:\n${keyInsights.map((k, i) => `${i + 1}. ${k}`).join('\n')}\n\nIMPORTANT/UNIQUE POINTS FROM TRANSCRIPTS:\n${chunkKeyPoints.map((p, i) => `${i + 1}. ${p}`).join('\n')}\n\nTASK:\n1. Identify the most important and recurring points across all interviews.\n2. Highlight any surprising or unique feedback.\n3. Provide 3–5 actionable recommendations for improving the product.\nReturn your analysis as a JSON object with keys: trends, surprises, recommendations.`
+  const prompt = `You are an expert product manager analyzing user research data. Based on the following interview summaries, key insights, and important points from transcripts, generate a JSON object with these keys: trends (recurring points), surprises (unique or unexpected feedback), and recommendations (3-5 actionable suggestions to improve the product).\n\n${productContext}${productDocumentation}INTERVIEW SUMMARIES:\n${summaries.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n\nKEY INSIGHTS:\n${keyInsights.map((k, i) => `${i + 1}. ${k}`).join('\n')}\n\nIMPORTANT/UNIQUE POINTS FROM TRANSCRIPTS:\n${chunkKeyPoints.map((p, i) => `${i + 1}. ${p}`).join('\n')}\n\nTASK:\n1. Identify the most important and recurring points across all interviews.\n2. Highlight any surprising or unique feedback.\n3. Provide 3–5 actionable recommendations for improving the product.\n\nRespond ONLY with a valid JSON object with keys: trends, surprises, recommendations. Do not include any explanation, markdown, or prose. If you cannot answer, return an empty JSON object {}`;
 
   // Truncate content if it's too long to prevent token limit issues
   const maxPromptLength = 80000; // ~20k tokens
@@ -173,7 +173,10 @@ ${text}`
   
   const completion = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
-    messages: [{ role: 'user', content: finalPrompt }],
+    messages: [
+      { role: 'system', content: 'You are a JSON-only generator. You must respond ONLY with a valid JSON object, no explanation, no markdown, no prose.' },
+      { role: 'user', content: finalPrompt }
+    ],
     temperature: 0.2,
     max_tokens: 800,
   })
