@@ -7,6 +7,7 @@ import { ProcessResponse } from '@/types/api'
 import env from '@/lib/env'
 import { processInterviewChunks } from '@/lib/chunking-service'
 import { extractTextFromPdfBuffer } from '@/lib/pdf-extraction'
+import { createClient } from '@supabase/supabase-js'
 
 const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY })
 
@@ -22,7 +23,7 @@ When analyzing interview content, extract the following information as a JSON ob
   "interview_date": "string - Date of the interview (YYYY-MM-DD format if available, otherwise null)",
   "summary": "string - A detailed 3-4 sentence summary that captures: 1) The participant's specific role/background, 2) Their main pain points or challenges, 3) Their specific feedback about tools/products, 4) Any concrete suggestions they made. Be specific and reference actual quotes or details from the interview.",
   "keywords": ["array of strings - 5-8 specific terms that capture the participant's actual concerns, tools mentioned, pain points, or specific feedback. Avoid generic terms like 'efficiency' or 'productivity' unless they're used in specific contexts."],
-  "sentiment": "number - Overall sentiment score from 0-10 based on the participant's tone, language, and emotional indicators (0=very negative/frustrated, 5=neutral/mixed, 10=very positive/enthusiastic)",
+  "sentiment": "number - Overall sentiment score from 0-10 based on the participant's reaction to the product demo (0=very negative about the product, 5=neutral/mixed feelings about the product, 10=very positive about the product)",
   "key_insights": ["array of 3 specific insights - These must be insights SPECIFIC to the portion of the interview where the product is demoed or discussed. Focus on: 1) Their immediate reactions to specific features, 2) How they would use the product in their workflow, 3) What surprised them or stood out, 4) Specific pain points the product addresses for them. Each insight should be 1-2 sentences and reference specific details from their demo feedback."],
   "key_quote": "string - A notable, valuable, or surprising quote from the participant that comes directly from their statements in the transcript. This should be a verbatim quote that captures their most important feedback, reaction, or insight. Choose the quote that best represents their perspective or contains the most valuable information."
 }
@@ -32,7 +33,7 @@ DETAILED EXTRACTION GUIDELINES:
 - interview_date: Look for "Today is [date]", "This interview is on [date]", or any date references. Convert to YYYY-MM-DD format.
 - summary: Include specific details like "Sarah, a marketing manager at TechCorp, expressed frustration with her current project management tool because it doesn't integrate with her email system. She specifically mentioned that switching between 5 different apps daily is causing her team to miss deadlines."
 - keywords: Extract specific terms the participant actually used, like "Slack integration", "email notifications", "team collaboration", "deadline tracking"
-- sentiment: Consider words like "frustrated", "love", "hate", "amazing", "terrible", "works well", "broken"
+- sentiment: Focus on the participant's reaction to the product demo specifically. Consider words like "love this feature", "hate the interface", "this solves my problem", "I don't see how this helps", "amazing how it works", "terrible user experience", "I can see myself using this", "this doesn't address my needs"
 - key_insights: Focus ONLY on the portion where the product is demoed or discussed. Look for phrases like "when you showed me", "I like how", "this would help me", "I can see myself using", "this solves my problem with". Each insight should be specific to their demo experience, not generic feedback.
 - key_quote: Choose the most impactful verbatim quote from the participant. Look for quotes that show strong reactions, specific feedback, or valuable insights. The quote should be complete and meaningful on its own.
 
@@ -59,7 +60,7 @@ STEP 2: ANALYZE PMF AGAINST PRODUCT CONTEXT
 Analyze the interview summary and keywords against your understanding of the product to provide:
 
 {
-  "pmf_score": "number - Product-market fit score as a percentage (0-100, where 100 means perfect fit)",
+  "pmf_score": "number - Product-market fit score as a percentage (0-100) based on user's reaction to the product demo",
   "recommendations": ["array of 1-3 specific, actionable recommendations to improve PMF"]
 }
 
@@ -68,8 +69,13 @@ DETAILED PMF EVALUATION GUIDELINES:
 - Evaluate how well the product addresses the SPECIFIC pain points mentioned by the participant
 - Consider the gap between what the participant needs and what the product currently offers
 - Score PMF based on: 1) How many of the participant's needs are met by the product, 2) How critical those needs are, 3) How well the product solves them
-- If the participant's needs align well with the product's strengths, score higher (70-100)
-- If there are significant gaps between needs and the product's capabilities, score lower (0-50)
+
+PMF SCORING RANGES:
+- 0-25% for very much not a fit (the user expresses strong negative feelings about the product demo - no chance of using)
+- 25-50% for not a fit (the user expresses negative feelings about the product demo - not likely to use)
+- 50% for neutral (the user expresses indifference or mixed feelings about the product - unclear whether they would use)
+- 50-75% for a good fit (the user expresses positive feelings about the product demo - likely to use)
+- 75-100% for a great fit (the user expresses strong positive feelings about the product demo - very likely to use)
 
 SPECIFIC RECOMMENDATIONS GUIDELINES:
 - Base recommendations on the participant's ACTUAL feedback and pain points
@@ -95,44 +101,59 @@ async function processHandler(request: NextRequest): Promise<NextResponse<Proces
     throw new ValidationError('Method not allowed')
   }
 
-  const body = await request.json()
-  const { interviewId } = body
+  // Require authentication
+  const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const authHeader = request.headers.get('Authorization')
+  const jwt = authHeader?.replace('Bearer ', '')
+  const { data: { user } } = await supabaseAdmin.auth.getUser(jwt)
+  if (!user) {
+    throw new ValidationError('Not authenticated')
+  }
+
+  // Create a Supabase client with the user's JWT for database operations
+  const supabaseWithAuth = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: `Bearer ${jwt}`
+        }
+      }
+    }
+  )
+
+  const { interviewId } = await request.json()
 
   if (!interviewId) {
-    throw new ValidationError('No interviewId provided')
+    throw new ValidationError('Interview ID is required')
   }
 
   try {
-    console.log(`[AI] Starting processing for interview ${interviewId}`)
-    
-    // Set status to 'processing' immediately
-    await supabase.from('interviews').update({ status: 'processing' }).eq('id', interviewId)
-    
-    // Fetch interview record
-    const { data: interview, error: fetchError } = await supabase
+    // Update status to processing
+    await supabaseWithAuth.from('interviews').update({ status: 'processing' }).eq('id', interviewId).eq('user_id', user.id)
+
+    // Fetch the interview
+    const { data: interview, error: fetchError } = await supabaseWithAuth
       .from('interviews')
       .select('*')
       .eq('id', interviewId)
+      .eq('user_id', user.id)
       .single()
-    
+
     if (fetchError || !interview) {
-      console.error('[AI] Interview not found', fetchError)
-      await supabase.from('interviews').update({ status: 'failed' }).eq('id', interviewId)
-      return createSuccessResponse({ status: 'failed' })
+      await supabaseWithAuth.from('interviews').update({ status: 'failed' }).eq('id', interviewId).eq('user_id', user.id)
+      throw new ValidationError('Interview not found')
     }
 
-    console.log(`[AI] Processing interview: ${interview.file_name}`)
-
-    // Download file from Supabase
-    const { data: fileData, error: downloadError } = await supabase.storage
+    // Download the file from storage
+    const { data: fileData, error: downloadError } = await supabaseWithAuth.storage
       .from('interviews')
       .download(interview.file_path)
-    
+
     if (downloadError || !fileData) {
-      console.error('[AI] Failed to download file:', downloadError)
-      console.error('[AI] File path:', interview.file_path)
-      await supabase.from('interviews').update({ status: 'failed' }).eq('id', interviewId)
-      return createSuccessResponse({ status: 'failed' })
+      await supabaseWithAuth.from('interviews').update({ status: 'failed' }).eq('id', interviewId).eq('user_id', user.id)
+      throw new ValidationError('Failed to download file')
     }
 
     console.log(`[AI] Downloaded file: ${interview.file_name}`)
@@ -197,7 +218,7 @@ async function processHandler(request: NextRequest): Promise<NextResponse<Proces
       
     } catch (error) {
       console.error('[AI] Failed to extract text from file:', error)
-      await supabase.from('interviews').update({ status: 'failed' }).eq('id', interviewId)
+      await supabaseWithAuth.from('interviews').update({ status: 'failed' }).eq('id', interviewId).eq('user_id', user.id)
       return createSuccessResponse({ status: 'failed' })
     }
 
@@ -230,7 +251,7 @@ ${textContent}`
     const extractionJsonMatch = extractionResponse.match(/\{[\s\S]*\}/)
     if (!extractionJsonMatch) {
       console.error('[AI] No JSON found in Step 1 response')
-      await supabase.from('interviews').update({ status: 'failed' }).eq('id', interviewId)
+      await supabaseWithAuth.from('interviews').update({ status: 'failed' }).eq('id', interviewId).eq('user_id', user.id)
       return createSuccessResponse({ status: 'failed' })
     }
 
@@ -246,7 +267,7 @@ ${textContent}`
     
     try {
       
-      const { data: product } = await supabase
+      const { data: product } = await supabaseWithAuth
         .from('product_context')
         .select('name, description, url, additional_documents')
         .order('created_at', { ascending: false })
@@ -267,7 +288,7 @@ ${textContent}`
             product.additional_documents.map(async (doc: any) => {
               try {
                 // Download file from storage
-                const { data: fileData, error: downloadError } = await supabase.storage
+                const { data: fileData, error: downloadError } = await supabaseWithAuth.storage
                   .from('product-documents')
                   .download(doc.file_path)
                 
@@ -358,7 +379,7 @@ Please evaluate how well the product addresses the needs mentioned in this inter
     const pmfJsonMatch = pmfResponse.match(/\{[\s\S]*\}/)
     if (!pmfJsonMatch) {
       console.error('[AI] No JSON found in Step 2 response')
-      await supabase.from('interviews').update({ status: 'failed' }).eq('id', interviewId)
+      await supabaseWithAuth.from('interviews').update({ status: 'failed' }).eq('id', interviewId).eq('user_id', user.id)
       return createSuccessResponse({ status: 'failed' })
     }
 
@@ -386,21 +407,22 @@ Please evaluate how well the product addresses the needs mentioned in this inter
       status: 'complete' 
     }
     
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseWithAuth
       .from('interviews')
       .update(updateData)
       .eq('id', interviewId)
+      .eq('user_id', user.id)
     
     if (updateError) {
       console.error('[AI] Failed to update interview:', updateError)
-      await supabase.from('interviews').update({ status: 'failed' }).eq('id', interviewId)
+      await supabaseWithAuth.from('interviews').update({ status: 'failed' }).eq('id', interviewId).eq('user_id', user.id)
       return createSuccessResponse({ status: 'failed' })
     }
 
     // STEP 3: Process interview into searchable chunks
     console.log('[DEBUG] Text content for chunking:', textContent.substring(0, 500));
     console.log(`[AI] Step 3: Processing interview into searchable chunks`)
-    const chunkingResult = await processInterviewChunks(interviewId, textContent)
+    const chunkingResult = await processInterviewChunks(interviewId, textContent, 1400, 1700, user.id, supabaseWithAuth)
     
     if (!chunkingResult.success) {
       console.error('[AI] Failed to process chunks:', chunkingResult.error)
@@ -412,10 +434,20 @@ Please evaluate how well the product addresses the needs mentioned in this inter
 
     // Trigger aggregate insights update
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/insights`, {
+      console.log('[AI] Triggering aggregate insights update...')
+      const insightsResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/insights`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwt}`
+        }
       })
-      console.log('[AI] Triggered aggregate insights update')
+      
+      if (insightsResponse.ok) {
+        console.log('[AI] Successfully triggered aggregate insights update')
+      } else {
+        console.error('[AI] Failed to trigger aggregate insights update:', insightsResponse.status)
+      }
     } catch (err) {
       console.error('[AI] Failed to trigger aggregate insights update:', err)
     }
@@ -425,7 +457,7 @@ Please evaluate how well the product addresses the needs mentioned in this inter
 
   } catch (error) {
     console.error('[AI] Processing error:', error)
-    await supabase.from('interviews').update({ status: 'failed' }).eq('id', interviewId)
+    await supabaseWithAuth.from('interviews').update({ status: 'failed' }).eq('id', interviewId).eq('user_id', user.id)
     return createSuccessResponse({ status: 'failed' })
   }
 }

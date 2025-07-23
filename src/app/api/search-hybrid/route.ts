@@ -5,12 +5,13 @@ import { withErrorHandler, ValidationError, InternalServerError } from '@/lib/er
 import { createSuccessResponse } from '@/lib/errors'
 import { HybridSearchResponse } from '@/types/api'
 import env from '@/lib/env'
+import { createClient } from '@supabase/supabase-js'
 
 const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY })
 
 interface SearchResult {
   id: string
-  doc_id: string
+  interview_id: string
   chunk_index: number
   clean_text: string
   embedding: number[]
@@ -52,6 +53,28 @@ async function hybridSearchHandler(request: NextRequest): Promise<NextResponse<H
     throw new ValidationError('Method not allowed')
   }
 
+  // Require authentication
+  const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const authHeader = request.headers.get('Authorization')
+  const jwt = authHeader?.replace('Bearer ', '')
+  const { data: { user } } = await supabaseAdmin.auth.getUser(jwt)
+  if (!user) {
+    throw new ValidationError('Not authenticated')
+  }
+
+  // Create a Supabase client with the user's JWT for database operations
+  const supabaseWithAuth = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: `Bearer ${jwt}`
+        }
+      }
+    }
+  )
+
   const { searchParams } = new URL(request.url)
   const query = searchParams.get('q')
   const searchType = searchParams.get('type') || 'hybrid' // hybrid, full_text, semantic
@@ -68,7 +91,7 @@ async function hybridSearchHandler(request: NextRequest): Promise<NextResponse<H
 
     if (searchType === 'full_text') {
       // Full-text search only
-      const { data, error } = await supabase
+      const { data, error } = await supabaseWithAuth
         .rpc('full_text_search', {
           query_text: query,
           match_count: limit
@@ -93,7 +116,7 @@ async function hybridSearchHandler(request: NextRequest): Promise<NextResponse<H
 
       const queryEmbedding = embeddingResponse.data[0].embedding
 
-      const { data, error } = await supabase
+      const { data, error } = await supabaseWithAuth
         .rpc('semantic_search', {
           query_embedding: queryEmbedding,
           match_count: limit
@@ -118,7 +141,7 @@ async function hybridSearchHandler(request: NextRequest): Promise<NextResponse<H
 
       const queryEmbedding = embeddingResponse.data[0].embedding
 
-      const { data, error } = await supabase
+      const { data, error } = await supabaseWithAuth
         .rpc('hybrid_search', {
           query_text: query,
           query_embedding: queryEmbedding,
@@ -140,8 +163,8 @@ async function hybridSearchHandler(request: NextRequest): Promise<NextResponse<H
     }
 
     // Get interview metadata for each chunk
-    const docIds = [...new Set(searchResults.map(r => r.doc_id))]
-    const { data: interviews, error: interviewError } = await supabase
+    const docIds = [...new Set(searchResults.map(r => r.interview_id))]
+    const { data: interviews, error: interviewError } = await supabaseWithAuth
       .from('interviews')
       .select('*')
       .in('id', docIds)
@@ -155,10 +178,10 @@ async function hybridSearchHandler(request: NextRequest): Promise<NextResponse<H
 
     // Format results for the frontend
     const formattedResults = searchResults.map((chunk, index) => {
-      const interview = interviewMap.get(chunk.doc_id)
+      const interview = interviewMap.get(chunk.interview_id)
       return {
         id: chunk.id,
-        interview_id: chunk.doc_id,
+        interview_id: chunk.interview_id,
         chunk_index: chunk.chunk_index,
         content: chunk.clean_text,
         interview: interview || null,

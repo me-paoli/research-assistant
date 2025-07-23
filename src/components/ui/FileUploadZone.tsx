@@ -2,15 +2,24 @@
 
 import { useDropzone } from 'react-dropzone'
 import { Upload, FileText } from 'lucide-react'
+import { useAuthContext } from '@/context/AuthContext'
 
 interface FileUploadZoneProps {
   onDrop: (acceptedFiles: File[]) => void
   isUploading: boolean
+  requireAuth?: boolean
 }
 
-export function FileUploadZone({ onDrop, isUploading }: FileUploadZoneProps) {
+export function FileUploadZone({ onDrop, isUploading, requireAuth = true }: FileUploadZoneProps) {
+  const { user } = useAuthContext()
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
+    onDrop: (files) => {
+      if (requireAuth && !user) {
+        window.dispatchEvent(new CustomEvent('open-login-modal'))
+        return
+      }
+      onDrop(files)
+    },
     accept: {
       'application/pdf': ['.pdf'],
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']

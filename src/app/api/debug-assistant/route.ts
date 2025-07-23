@@ -55,8 +55,8 @@ When analyzing interview content, extract the following information as a JSON ob
   "interview_date": "string - Date of the interview (YYYY-MM-DD format if available, otherwise null)",
   "summary": "string - A concise 2-3 sentence summary of the main points discussed",
   "keywords": ["array of strings - Key topics, pain points, or themes mentioned"],
-  "sentiment": "number - Overall sentiment score from 0-10 (0=very negative, 5=neutral, 10=very positive)",
-  "pmf_score": "number - Product-market fit score as a percentage (0-100) based on how well the product solves their problems"
+  "sentiment": "number - Overall sentiment score from 0-10 based on reaction to the product demo (0=very negative about the product, 5=neutral/mixed feelings about the product, 10=very positive about the product)",
+  "pmf_score": "number - Product-market fit score as a percentage (0-100) based on user's reaction to the product demo"
 }
 
 Always return your analysis as a valid JSON object with these exact keys.`,

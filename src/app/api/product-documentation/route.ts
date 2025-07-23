@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { withErrorHandler, ValidationError, InternalServerError } from '@/lib/errors'
 import { createSuccessResponse } from '@/lib/errors'
 import { ProductDocumentationResponse, ProductDocumentationListResponse } from '@/types/api'
+import { createClient } from '@supabase/supabase-js'
 
 // File validation - same as interview uploads
 const ALLOWED_TYPES = [
@@ -46,10 +47,38 @@ async function getProductDocumentationHandler(request: NextRequest): Promise<Nex
     throw new ValidationError('Method not allowed')
   }
 
-  // Fetch product context and return documentation metadata
-  const { data, error } = await supabase
+  // Get the current user (using anon key for JWT validation)
+  const supabaseClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  const authHeader = request.headers.get('Authorization')
+  const jwt = authHeader?.replace('Bearer ', '')
+  
+  if (!jwt) {
+    throw new ValidationError('No authentication token provided')
+  }
+  
+  const { data: { user }, error: authError } = await supabaseClient.auth.getUser(jwt)
+  if (!user || authError) {
+    throw new ValidationError('Not authenticated')
+  }
+
+  // Create a Supabase client with the user's JWT for database operations
+  const supabaseWithAuth = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: `Bearer ${jwt}`
+        }
+      }
+    }
+  )
+
+  // Fetch product context for this user and return documentation metadata
+  const { data, error } = await supabaseWithAuth
     .from('product_context')
     .select('additional_documents')
+    .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(1)
     .single()
@@ -72,18 +101,46 @@ async function postProductDocumentationHandler(request: NextRequest): Promise<Ne
     throw new ValidationError('Method not allowed')
   }
 
-  const { file, name, description } = await parseFormData(request)
+  // Get the current user (using anon key for JWT validation)
+  const supabaseClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  const authHeader = request.headers.get('Authorization')
+  const jwt = authHeader?.replace('Bearer ', '')
   
+  if (!jwt) {
+    throw new ValidationError('No authentication token provided')
+  }
+  
+  const { data: { user }, error: authError } = await supabaseClient.auth.getUser(jwt)
+  if (!user || authError) {
+    throw new ValidationError('Not authenticated')
+  }
+
+  // Create a Supabase client with the user's JWT for database operations
+  const supabaseWithAuth = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: `Bearer ${jwt}`
+        }
+      }
+    }
+  )
+
+  const { file, name, description } = await parseFormData(request)
+
   // Generate unique filename
   const ext = file.name.split('.').pop() || 'bin'
   const fileName = `${uuidv4()}_${Date.now()}.${ext}`
-  
+  const filePath = `${user.id}/${fileName}`
+
   // Convert file to buffer
   const buffer = Buffer.from(await file.arrayBuffer())
-  
+
   try {
-    // Upload to Supabase storage using StorageService
-    const uploadResult = await StorageService.uploadProductDocument(buffer, fileName, file.type)
+    // Upload to Supabase storage using StorageService (user folder)
+    const uploadResult = await StorageService.uploadProductDocument(buffer, filePath, file.type)
     
     if (!uploadResult.success) {
       throw new InternalServerError(uploadResult.error || 'Upload failed')
@@ -99,13 +156,15 @@ async function postProductDocumentationHandler(request: NextRequest): Promise<Ne
       file_size: buffer.length,
       file_type: file.type,
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      user_id: user.id
     }
 
-    // Get existing product context
-    const { data: existingContext, error: fetchError } = await supabase
+    // Get existing product context for this user
+    const { data: existingContext, error: fetchError } = await supabaseWithAuth
       .from('product_context')
       .select('id, additional_documents')
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(1)
       .single()
@@ -121,7 +180,7 @@ async function postProductDocumentationHandler(request: NextRequest): Promise<Ne
 
     if (existingContext) {
       // Update existing product context
-      const { data, error: updateError } = await supabase
+      const { data, error: updateError } = await supabaseWithAuth
         .from('product_context')
         .update({ 
           additional_documents: updatedDocs,
@@ -140,13 +199,14 @@ async function postProductDocumentationHandler(request: NextRequest): Promise<Ne
       return createSuccessResponse({ documentation: newDoc })
     } else {
       // Create new product context with documentation
-      const { data, error: insertError } = await supabase
+      const { data, error: insertError } = await supabaseWithAuth
         .from('product_context')
         .insert([{ 
           name: 'Default Product',
           description: 'Product with uploaded documentation',
           url: '',
-          additional_documents: [newDoc]
+          additional_documents: [newDoc],
+          user_id: user.id
         }])
         .select()
         .single()

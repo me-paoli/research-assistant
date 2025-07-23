@@ -1,3 +1,4 @@
+// NOTE: Do not import this file in client components/hooks. Only use for server-side validation.
 import { z } from 'zod'
 
 const envSchema = z.object({

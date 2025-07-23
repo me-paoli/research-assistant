@@ -20,29 +20,23 @@ export class StorageService {
   /**
    * Upload an interview file to Supabase storage
    */
-  static async uploadInterviewFile(buffer: Buffer, fileName: string, contentType: string): Promise<UploadResult> {
-    return this.uploadFile(buffer, fileName, contentType, INTERVIEWS_BUCKET)
+  static async uploadInterviewFile(buffer: Buffer, filePath: string, contentType: string): Promise<UploadResult> {
+    return this.uploadFile(buffer, filePath, contentType, INTERVIEWS_BUCKET)
   }
 
   /**
    * Upload a product document file to Supabase storage
    */
-  static async uploadProductDocument(buffer: Buffer, fileName: string, contentType: string): Promise<UploadResult> {
-    return this.uploadFile(buffer, fileName, contentType, PRODUCT_DOCUMENTS_BUCKET)
+  static async uploadProductDocument(buffer: Buffer, filePath: string, contentType: string): Promise<UploadResult> {
+    return this.uploadFile(buffer, filePath, contentType, PRODUCT_DOCUMENTS_BUCKET)
   }
 
   /**
    * Upload a file to Supabase storage (generic method)
    */
-  private static async uploadFile(buffer: Buffer, fileName: string, contentType: string, bucket: string): Promise<UploadResult> {
+  private static async uploadFile(buffer: Buffer, filePath: string, contentType: string, bucket: string): Promise<UploadResult> {
     try {
-      // Generate unique file path
-      const fileId = crypto.randomUUID()
-      const fileExtension = fileName.split('.').pop()
-      const uniqueFileName = `${fileId}.${fileExtension}`
-      const filePath = `${uniqueFileName}`
-
-      // Upload file to storage
+      // Upload file to storage (filePath may include user folder)
       const { data, error } = await supabase.storage
         .from(bucket)
         .upload(filePath, buffer, {
@@ -62,7 +56,7 @@ export class StorageService {
       return {
         success: true,
         filePath: data.path,
-        fileId: fileId
+        fileId: undefined // Not generating a fileId here
       }
     } catch (error) {
       console.error('Upload failed:', error)

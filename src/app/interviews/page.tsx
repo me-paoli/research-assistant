@@ -1,12 +1,16 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { FileText, Calendar, User, Download, Search, Lightbulb } from 'lucide-react'
+import { FileText, Calendar, User, Download, Search, Lightbulb, Plus } from 'lucide-react'
 import { Interview } from '@/types/database'
 import { FileUploadZone } from '@/components/ui/FileUploadZone'
 import { useFileUpload } from '@/hooks/useFileUpload'
+import { useInterviews } from '@/hooks/useInterviews'
 import { UploadProgressList } from '@/components/ui/UploadProgressList'
+import { InterviewCard } from '@/components/ui/InterviewCard'
+import { Toast } from '@/components/ui/Toast'
 import { Dialog } from '@headlessui/react'
+import { supabase } from '@/lib/supabase'
 
 interface SearchResult {
   id: string
@@ -29,7 +33,8 @@ export default function InterviewsPage() {
   const [searchLoading, setSearchLoading] = useState(false)
   const [expandedResults, setExpandedResults] = useState<{ [id: string]: boolean }>({})
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
-  const [showProcessingModal, setShowProcessingModal] = useState(false);
+  const [showProcessingModal, setShowProcessingModal] = useState(false)
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
 
   const {
     uploads,
@@ -38,18 +43,22 @@ export default function InterviewsPage() {
     removeUpload
   } = useFileUpload()
 
+  // Auto-close modal when uploads start
   useEffect(() => {
-    async function fetchInterviews() {
-      setLoading(true)
-      const res = await fetch('/api/interviews')
-      const data = await res.json()
-      const fetchedInterviews = data.data?.interviews || []
+    if (uploads.length > 0 && isUploadModalOpen) {
+      setIsUploadModalOpen(false)
+    }
+  }, [uploads.length, isUploadModalOpen])
+
+  const { interviews: fetchedInterviews, loading: isLoading, error, refetch } = useInterviews()
+
+  useEffect(() => {
+    if (fetchedInterviews) {
       setInterviews(fetchedInterviews)
       setFilteredInterviews(fetchedInterviews)
       setLoading(false)
     }
-    fetchInterviews()
-  }, [])
+  }, [fetchedInterviews])
 
   // Determine upload success and error from uploads array
   const hasUploadSuccess = uploads.some(u => u.status === 'completed')
@@ -57,18 +66,26 @@ export default function InterviewsPage() {
   // Refresh interviews after a new upload is completed and close modal
   useEffect(() => {
     if (hasUploadSuccess) {
-      (async () => {
-        setLoading(true)
-        const res = await fetch('/api/interviews')
-        const data = await res.json()
-        const fetchedInterviews = data.data?.interviews || []
-        setInterviews(fetchedInterviews)
-        setFilteredInterviews(fetchedInterviews)
-        setLoading(false)
-      })()
+      refetch()
       setIsUploadModalOpen(false)
+      
+      // Show success toast
+      setToast({
+        message: 'Interview processing completed! Your interview is now ready for analysis.',
+        type: 'success'
+      })
     }
-  }, [hasUploadSuccess])
+  }, [hasUploadSuccess, refetch])
+
+  // Show error toast when upload fails
+  useEffect(() => {
+    if (hasUploadError) {
+      setToast({
+        message: 'One or more uploads failed. Please try again.',
+        type: 'error'
+      })
+    }
+  }, [hasUploadError])
 
   useEffect(() => {
     if (searchQuery.trim().length === 0) {
@@ -87,12 +104,38 @@ export default function InterviewsPage() {
 
     setSearchLoading(true)
     try {
-      const res = await fetch(`/api/search-hybrid?q=${encodeURIComponent(query)}&limit=75`)
+      // Get authentication headers
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      const headers: Record<string, string> = {}
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
+      console.log('Searching for:', query)
+      console.log('Auth token present:', !!token)
+
+      const res = await fetch(`/api/search-hybrid?q=${encodeURIComponent(query)}&limit=75`, {
+        headers
+      })
+      
+      console.log('Search response status:', res.status)
+      
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.error('Search response error:', errorText)
+        throw new Error(`Search failed: ${res.status} - ${errorText}`)
+      }
+      
       const data = await res.json()
+      console.log('Search results:', data)
       setSearchResults(data.data?.results || [])
       setFilteredInterviews(data.data?.results || [])
     } catch (error) {
       console.error('Search error:', error)
+      // Fallback to showing all interviews if search fails
+      setSearchResults([])
+      setFilteredInterviews(interviews)
     }
     setSearchLoading(false)
   }
@@ -114,26 +157,38 @@ export default function InterviewsPage() {
     })
   }
 
-  const getSentimentColor = (sentiment: number | string | null | undefined) => {
-    if (sentiment === null || sentiment === undefined) return 'text-gray-600 bg-gray-100';
-    const value = typeof sentiment === 'string' ? parseFloat(sentiment) : sentiment;
+  const getSentimentColor = (pmfScore: number | string | null | undefined) => {
+    if (pmfScore === null || pmfScore === undefined) return 'text-gray-600 bg-gray-100';
+    const value = typeof pmfScore === 'string' ? parseFloat(pmfScore) : pmfScore;
     if (typeof value !== 'number' || isNaN(value)) return 'text-gray-600 bg-gray-100';
-    if (value >= 7) return 'text-green-600 bg-green-100';    // positive
-    if (value >= 4) return 'text-yellow-600 bg-yellow-100';  // neutral
-    return 'text-red-600 bg-red-100';                        // negative
+    if (value >= 75) return 'text-green-800 bg-green-100';    // great fit - dark green
+    if (value >= 50) return 'text-green-600 bg-green-50';     // potential fit - light green
+    if (value === 50) return 'text-yellow-600 bg-yellow-100'; // neutral - yellow
+    if (value >= 25) return 'text-red-600 bg-red-50';         // poor fit - light red
+    return 'text-red-800 bg-red-100';                         // very poor fit - dark red
   }
 
-  const getSentimentLabel = (sentiment: number | string | null | undefined) => {
-    if (sentiment === null || sentiment === undefined) return 'N/A';
-    const value = typeof sentiment === 'string' ? parseFloat(sentiment) : sentiment;
+  const getSentimentLabel = (pmfScore: number | string | null | undefined) => {
+    if (pmfScore === null || pmfScore === undefined) return 'N/A';
+    const value = typeof pmfScore === 'string' ? parseFloat(pmfScore) : pmfScore;
     if (typeof value !== 'number' || isNaN(value)) return 'N/A';
-    if (value <= 4) return 'Negative';
-    if (value === 5) return 'Neutral';
-    if (value >= 6) return 'Positive';
-    return 'N/A';
+    if (value >= 75) return 'Great fit';
+    if (value >= 50) return 'Potential fit';
+    if (value === 50) return 'Neutral';
+    if (value >= 25) return 'Poor fit';
+    return 'Very poor fit';
   };
 
   // Generate insights based on interview content
+  // Helper function to map PMF score ranges to labels
+  const getPMFScoreMapping = (pmfScore: number) => {
+    if (pmfScore >= 75) return '75-100% (Great fit)';
+    if (pmfScore >= 50) return '50-75% (Potential fit)';
+    if (pmfScore === 50) return '50% (Neutral)';
+    if (pmfScore >= 25) return '25-50% (Poor fit)';
+    return '0-25% (Very poor fit)';
+  };
+
   const generateInsights = (interview: Interview) => {
     // First try to use the structured key_insights if available
     if (interview.key_insights) {
@@ -187,6 +242,43 @@ export default function InterviewsPage() {
     return insights.slice(0, 3) // Limit to 3 insights
   }
 
+  const handleDeleteInterview = async (interviewId: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      const headers: Record<string, string> = {}
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
+      const response = await fetch(`/api/interviews/${interviewId}`, {
+        method: 'DELETE',
+        headers
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete interview: ${response.status}`)
+      }
+
+      // Remove from local state
+      setInterviews(prev => prev.filter(i => i.id !== interviewId))
+      setFilteredInterviews(prev => prev.filter(i => i.id !== interviewId))
+      
+      // Show success toast
+      setToast({
+        message: 'Interview deleted successfully.',
+        type: 'success'
+      })
+    } catch (error) {
+      console.error('Error deleting interview:', error)
+      setToast({
+        message: 'Failed to delete interview. Please try again.',
+        type: 'error'
+      })
+      throw error
+    }
+  }
+
   // Detect in-progress uploads
   const hasInProgressUpload = uploads.some(u => u.status === 'uploading' || u.status === 'processing')
   const processingUploads = uploads.filter(u => u.status === 'uploading' || u.status === 'processing');
@@ -199,10 +291,11 @@ export default function InterviewsPage() {
           {/* New Interview Button and Upload Modal */}
           <div className="flex justify-end mb-8">
             <button
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-sm transition-colors"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-sm transition-colors flex items-center space-x-2"
               onClick={() => setIsUploadModalOpen(true)}
             >
-              New Interview
+              <Plus className="w-5 h-5" />
+              <span>New Interview</span>
             </button>
           </div>
           
@@ -253,13 +346,9 @@ export default function InterviewsPage() {
               <Dialog.Panel className="relative bg-white rounded-xl shadow-xl max-w-lg w-full mx-auto p-6 z-10">
                 <Dialog.Title className="text-heading-2 text-gray-900 mb-4">Upload New Interview</Dialog.Title>
                 <FileUploadZone onDrop={uploadFiles} isUploading={isUploading} />
-                <UploadProgressList uploads={uploads} onRemove={removeUpload} />
-                {hasUploadError && (
-                  <div className="mt-4 text-red-600 text-sm">One or more uploads failed. Please try again.</div>
-                )}
-                {hasUploadSuccess && (
-                  <div className="mt-4 text-green-600 text-sm">Upload successful! Interview will appear below.</div>
-                )}
+                <div className="mt-4 text-sm text-gray-600 text-center">
+                  Supported formats: PDF, DOCX
+                </div>
                 <button
                   className="mt-6 text-gray-600 hover:text-gray-900 text-sm"
                   onClick={() => setIsUploadModalOpen(false)}
@@ -359,8 +448,20 @@ export default function InterviewsPage() {
               )
             ) : (
               filteredInterviews.length === 0 ? (
-                <div className="text-center text-gray-600 py-12">
-                  No interviews found. Upload user interviews to get started.
+                <div className="text-center py-16">
+                  <div className="max-w-md mx-auto">
+                    <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No interviews yet</h3>
+                    <p className="text-gray-600 mb-6">
+                      Upload your first user interview to start getting AI-powered insights and recommendations.
+                    </p>
+                    <button
+                      onClick={() => setIsUploadModalOpen(true)}
+                      className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                    >
+                      Upload Your First Interview
+                    </button>
+                  </div>
                 </div>
               ) : (
                 // Regular Interviews List View
@@ -368,117 +469,17 @@ export default function InterviewsPage() {
                   {filteredInterviews
                     .filter(interview => interview.status === 'complete' || interview.status === 'completed')
                     .map((interview) => {
-                    const insights = generateInsights(interview)
-                    
                     return (
-                      <div key={interview.id} className="bg-white border border-gray-200 rounded-xl p-8 shadow-sm">
-                        <div className="flex items-start justify-between mb-6">
-                          <div className="flex-1">
-                            <h3 className="text-heading-2 text-gray-900 mb-3">
-                              {interview.subject_name || interview.title || interview.file_name}
-                            </h3>
-                            <div className="flex items-center space-x-6 text-sm text-gray-600 mb-4">
-                              <div className="flex items-center space-x-2">
-                                <User className="w-4 h-4" />
-                                <span>{interview.subject_name || 'N/A'}</span>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <Calendar className="w-4 h-4" />
-                                <span>{formatDate(interview.interview_date || interview.created_at)}</span>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <FileText className="w-4 h-4" />
-                                <span>{formatFileSize(interview.file_size || 0)}</span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-4">
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${getSentimentColor(interview.sentiment)}`}>
-                              {getSentimentLabel(interview.sentiment)}
-                            </span>
-                            <div className="text-right">
-                              <div className="text-sm text-gray-600">Fit Score</div>
-                              <div className="text-lg font-semibold text-blue-600">
-                                {typeof interview.pmf_score === 'number' ? `${interview.pmf_score}%` : 'N/A'}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <p className="text-body text-gray-700 mb-6 leading-relaxed">
-                          {interview.summary || interview.content?.substring(0, 200) || 'No summary available.'}
-                        </p>
-
-                        {/* Key Quote */}
-                        {interview.key_quote && (
-                          <div className="mb-6 p-4 bg-gray-50 rounded-lg border-l-4 border-gray-300">
-                            <h4 className="text-sm font-medium text-gray-900 mb-2">Key Quote:</h4>
-                            <blockquote className="text-sm text-gray-700 italic leading-relaxed">
-                              &quot;{interview.key_quote}&quot;
-                            </blockquote>
-                          </div>
-                        )}
-
-                        {/* Key Insights */}
-                        {insights.length > 0 && (
-                          <div className="mb-6">
-                            <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center">
-                              <Lightbulb className="w-4 h-4 mr-2 text-yellow-500" />
-                              Key Insights:
-                            </h4>
-                            <ul className="space-y-2">
-                              {insights.map((insight, index) => (
-                                <li key={index} className="text-sm text-gray-600 flex items-start">
-                                  <span className="text-yellow-500 mr-2">•</span>
-                                  {insight}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {/* Recommendations Section */}
-                        {interview.recommendations && (
-                          (() => {
-                            try {
-                              const recommendations = typeof interview.recommendations === 'string' 
-                                ? JSON.parse(interview.recommendations) 
-                                : interview.recommendations;
-                              
-                              if (Array.isArray(recommendations) && recommendations.length > 0) {
-                                return (
-                                  <div className="mb-6">
-                                    <h4 className="text-sm font-medium text-gray-900 mb-3">Recommendations to Improve PMF:</h4>
-                                    <ul className="space-y-2">
-                                      {recommendations.map((recommendation: string, index: number) => (
-                                        <li key={index} className="text-sm text-gray-600 flex items-start">
-                                          <span className="text-blue-500 mr-2">•</span>
-                                          {recommendation}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                );
-                              }
-                            } catch (error) {
-                              console.error('Error parsing recommendations:', error);
-                            }
-                            return null;
-                          })()
-                        )}
-
-                        <div className="flex items-center justify-end">
-                          {interview.file_path && (
-                            <button
-                              className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center transition-colors"
-                              onClick={() => window.open(interview.file_path, '_blank')}
-                            >
-                              <Download className="w-4 h-4 mr-2" />
-                              Download
-                            </button>
-                          )}
-                        </div>
-                      </div>
+                      <InterviewCard
+                        key={interview.id}
+                        interview={interview}
+                        formatFileSize={formatFileSize}
+                        formatDate={formatDate}
+                        getSentimentColor={getSentimentColor}
+                        getSentimentLabel={getSentimentLabel}
+                        generateInsights={generateInsights}
+                        onDelete={handleDeleteInterview}
+                      />
                     )
                   })}
                 </div>
@@ -490,6 +491,21 @@ export default function InterviewsPage() {
           <div className="h-20"></div>
         </div>
       </div>
+      
+      {/* Toast notifications */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+      
+      {/* Upload progress list */}
+      <UploadProgressList
+        uploads={uploads}
+        onRemove={removeUpload}
+      />
     </div>
   )
 } 

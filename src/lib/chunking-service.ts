@@ -2,6 +2,7 @@ import { supabase } from './supabase'
 import { OpenAI } from 'openai'
 import { chunkByTurns, Chunk } from './chunking'
 import env from './env'
+import { SupabaseClient } from '@supabase/supabase-js'
 
 const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY })
 
@@ -61,10 +62,15 @@ export async function processInterviewChunks(
   interviewId: string,
   transcript: string,
   targetTokens = 1400,
-  maxTokens = 1700
+  maxTokens = 1700,
+  userId?: string,
+  supabaseClient?: SupabaseClient
 ): Promise<{ success: boolean; chunksCount: number; error?: string }> {
   try {
     console.log(`[CHUNKING] Processing interview ${interviewId} into chunks`)
+    
+    // Use provided client or fallback to default
+    const client = supabaseClient || supabase
     
     // Chunk the transcript
     const chunks = chunkByTurns(transcript, targetTokens, maxTokens)
@@ -97,14 +103,15 @@ export async function processInterviewChunks(
     
     // Store chunks in database
     const chunkRecords = chunksWithEmbeddings.map((chunk, index) => ({
-      doc_id: interviewId,
+      interview_id: interviewId,
       chunk_index: index,
       clean_text: chunk.text,
       embedding: chunk.embedding,
-      key_points: chunk.key_points
+      key_points: chunk.key_points,
+      ...(userId ? { user_id: userId } : {})
     }))
     
-    const { error: insertError } = await supabase
+    const { error: insertError } = await client
       .from('interview_chunks')
       .insert(chunkRecords)
     
@@ -138,7 +145,7 @@ export async function deleteInterviewChunks(interviewId: string): Promise<{ succ
     const { error } = await supabase
       .from('interview_chunks')
       .delete()
-      .eq('doc_id', interviewId)
+      .eq('interview_id', interviewId)
     
     if (error) {
       console.error('[CHUNKING] Failed to delete chunks:', error)
@@ -169,7 +176,7 @@ export async function getInterviewChunkStats(interviewId: string): Promise<{
     const { data, error } = await supabase
       .from('interview_chunks')
       .select('clean_text')
-      .eq('doc_id', interviewId)
+      .eq('interview_id', interviewId)
     
     if (error) {
       console.error('[CHUNKING] Failed to get chunk stats:', error)

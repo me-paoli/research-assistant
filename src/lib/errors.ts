@@ -57,10 +57,19 @@ export function createSuccessResponse<T>(data: T, status: number = 200) {
 // Handle async route errors
 export function withErrorHandler<T>(handler: (request: NextRequest) => Promise<NextResponse<T>>) {
   return async (request: NextRequest) => {
+    console.log('=== withErrorHandler START ===')
+    console.log('Request method:', request.method)
+    console.log('Request URL:', request.url)
+    
     try {
-      return await handler(request)
+      console.log('=== CALLING HANDLER ===')
+      const result = await handler(request)
+      console.log('=== HANDLER SUCCESS ===')
+      return result
     } catch (error) {
+      console.error('=== withErrorHandler ERROR ===')
       console.error('API Error:', error)
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack')
       
       if (error instanceof ApiError) {
         return createErrorResponse(error)

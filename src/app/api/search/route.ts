@@ -4,11 +4,34 @@ import { withErrorHandler, ValidationError, InternalServerError } from '@/lib/er
 import { createSuccessResponse } from '@/lib/errors'
 import { SearchResponse } from '@/types/api'
 import { extractTextFromPdfBuffer } from '@/lib/pdf-extraction'
+import { createClient } from '@supabase/supabase-js'
 
 async function searchHandler(request: NextRequest): Promise<NextResponse<SearchResponse>> {
   if (request.method !== 'GET') {
     throw new ValidationError('Method not allowed')
   }
+
+  // Require authentication
+  const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const authHeader = request.headers.get('Authorization')
+  const jwt = authHeader?.replace('Bearer ', '')
+  const { data: { user } } = await supabaseAdmin.auth.getUser(jwt)
+  if (!user) {
+    throw new ValidationError('Not authenticated')
+  }
+
+  // Create a Supabase client with the user's JWT for database operations
+  const supabaseWithAuth = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: `Bearer ${jwt}`
+        }
+      }
+    }
+  )
 
   const { searchParams } = new URL(request.url)
   const query = searchParams.get('q')
@@ -19,10 +42,11 @@ async function searchHandler(request: NextRequest): Promise<NextResponse<SearchR
 
   console.log(`[SEARCH] Searching for: "${query}"`)
 
-  // First, search in the database fields (summary, title, subject_name)
-  const { data: dbResults, error: dbError } = await supabase
+  // First, search in the database fields (summary, title, subject_name) for this user only
+  const { data: dbResults, error: dbError } = await supabaseWithAuth
     .from('interviews')
     .select('*')
+    .eq('user_id', user.id)
     .or(
       `subject_name.ilike.%${query}%,` +
       `summary.ilike.%${query}%,` +

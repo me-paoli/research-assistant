@@ -2,8 +2,10 @@
 
 import { useProductContext } from '@/hooks/useProductContext'
 import { ProductDocumentationUpload } from './ProductDocumentationUpload'
+import { useAuthContext } from '@/context/AuthContext'
 
 export function ProductContextForm() {
+  const { user } = useAuthContext()
   const {
     productName,
     setProductName,
@@ -99,6 +101,15 @@ export function ProductContextForm() {
   }
 
   // Show edit form
+  const gatedHandleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!user) {
+      window.dispatchEvent(new CustomEvent('open-login-modal'))
+      return
+    }
+    await handleSubmit(e)
+  }
+
   return (
     <div className="space-y-6">
       {/* Success/Error Message */}
@@ -112,7 +123,7 @@ export function ProductContextForm() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={gatedHandleSubmit} className="space-y-4">
         <div>
           <label htmlFor="product-name" className="block text-sm font-medium text-gray-700 mb-2">
             Product Name

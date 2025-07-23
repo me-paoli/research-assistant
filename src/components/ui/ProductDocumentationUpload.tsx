@@ -4,8 +4,10 @@ import { useState, useRef, useEffect } from 'react'
 import { useProductDocumentation } from '@/hooks/useProductDocumentation'
 import { FileUploadZone } from './FileUploadZone'
 import { Trash2, FileText, Upload } from 'lucide-react'
+import { useAuthContext } from '@/context/AuthContext'
 
 export function ProductDocumentationUpload() {
+  const { user } = useAuthContext()
   const {
     documentation,
     isUploading,
@@ -35,6 +37,10 @@ export function ProductDocumentationUpload() {
   }
 
   const handleUpload = async () => {
+    if (!user) {
+      window.dispatchEvent(new CustomEvent('open-login-modal'))
+      return
+    }
     if (!selectedFile || !uploadName.trim()) return
 
     try {
@@ -97,7 +103,7 @@ export function ProductDocumentationUpload() {
                 <input
                   id="doc-name"
                   type="text"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
                   value={uploadName}
                   onChange={(e) => setUploadName(e.target.value)}
                   placeholder="e.g. Product Requirements Document"
@@ -110,7 +116,7 @@ export function ProductDocumentationUpload() {
                 </label>
                 <textarea
                   id="doc-description"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical text-gray-900 placeholder-gray-500"
                   value={uploadDescription}
                   onChange={(e) => setUploadDescription(e.target.value)}
                   placeholder="Brief description of this document"

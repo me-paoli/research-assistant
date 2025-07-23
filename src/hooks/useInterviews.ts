@@ -1,64 +1,54 @@
-import { useState, useEffect } from 'react'
-import { Interview } from '@/types/database'
+'use client'
 
-/**
- * Custom hook for managing interview data
- * 
- * Handles fetching, loading, and deleting interviews
- * 
- * @returns {Object} Interview state and functions
- * @returns {Interview[]} returns.interviews - List of interviews
- * @returns {boolean} returns.loading - Whether interviews are being fetched
- * @returns {Object} returns.deleting - Map of interview IDs being deleted
- * @returns {Function} returns.deleteInterview - Function to delete an interview
- * @returns {Function} returns.refetch - Function to refetch interviews
- */
+import { useState, useEffect, useCallback } from 'react'
+import { Interview } from '@/types/database'
+import { supabase } from '@/lib/supabase'
+
 export function useInterviews() {
   const [interviews, setInterviews] = useState<Interview[]>([])
   const [loading, setLoading] = useState(true)
-  const [deleting, setDeleting] = useState<{ [id: string]: boolean }>({})
+  const [error, setError] = useState<string | null>(null)
 
-  /**
-   * Fetches all interviews from the API
-   */
-  const fetchInterviews = async () => {
-    setLoading(true)
+  const getAuthHeaders = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    const headers: Record<string, string> = {}
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+    }
+    return headers
+  }, [])
+
+  const fetchInterviews = useCallback(async () => {
     try {
-      const res = await fetch('/api/interviews')
+      setLoading(true)
+      setError(null)
+      const headers = await getAuthHeaders()
+      const res = await fetch('/api/interviews', { headers })
+      
+      if (!res.ok) {
+        throw new Error(`Failed to fetch interviews: ${res.status}`)
+      }
+      
       const data = await res.json()
-      setInterviews(data.data?.interviews || [])
-    } catch (error) {
-      console.error('Failed to fetch interviews:', error)
+      const fetchedInterviews = data.data?.interviews || []
+      setInterviews(fetchedInterviews)
+    } catch (err) {
+      console.error('Error fetching interviews:', err)
+      setError(err instanceof Error ? err.message : 'Failed to fetch interviews')
     } finally {
       setLoading(false)
     }
-  }
-
-  /**
-   * Deletes an interview by ID
-   * @param id - The interview ID to delete
-   */
-  const deleteInterview = async (id: string) => {
-    setDeleting(prev => ({ ...prev, [id]: true }))
-    try {
-      await fetch(`/api/interview?id=${id}`, { method: 'DELETE' })
-      setInterviews(prev => prev.filter((i) => i.id !== id))
-    } catch (error) {
-      console.error('Failed to delete interview:', error)
-    } finally {
-      setDeleting(prev => ({ ...prev, [id]: false }))
-    }
-  }
+  }, [getAuthHeaders])
 
   useEffect(() => {
     fetchInterviews()
-  }, [])
+  }, [fetchInterviews])
 
   return {
     interviews,
     loading,
-    deleting,
-    deleteInterview,
+    error,
     refetch: fetchInterviews
   }
 } 

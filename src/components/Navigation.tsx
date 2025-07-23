@@ -4,10 +4,12 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { FileText, BarChart3, Menu, X, User } from 'lucide-react'
+import { useAuthContext } from '@/context/AuthContext'
 
 export default function Navigation() {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { user, loading, logout } = useAuthContext()
 
   const navItems = [
     { href: '/interviews', label: 'Interviews', icon: FileText },
@@ -49,6 +51,25 @@ export default function Navigation() {
                 </Link>
               )
             })}
+            {/* Auth UI */}
+            {loading ? null : user ? (
+              <div className="flex items-center space-x-3 ml-4">
+                <span className="text-gray-700 text-sm">{user.email}</span>
+                <button
+                  onClick={logout}
+                  className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm"
+                >
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('open-login-modal'))}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm ml-4"
+              >
+                Login
+              </button>
+            )}
           </div>
 
           {/* Mobile Menu Button */}

@@ -58,8 +58,8 @@ EXTRACTION GUIDELINES:
 - interview_date: Extract any date mentioned, convert to YYYY-MM-DD format
 - summary: Focus on the most important insights, pain points, or feedback shared
 - keywords: Extract 5-10 relevant terms that capture main themes (avoid generic words)
-- sentiment: Consider tone, language, and emotional indicators in the transcript. Return a number from 0-10
-- pmf_score: Assess how well the discussed product/service addresses the user's needs and return a percentage (0-100, where 100 means perfect fit)
+- sentiment: Focus on the participant's reaction to the product demo specifically. Consider their tone, language, and emotional indicators when discussing the product. Return a number from 0-10 (0=very negative about the product, 5=neutral/mixed feelings about the product, 10=very positive about the product)
+- pmf_score: Assess how well the discussed product/service addresses the user's needs and return a percentage (0-100) based on user's reaction to the product demo
 
 Always return your analysis as a valid JSON object with these exact keys.`
         },

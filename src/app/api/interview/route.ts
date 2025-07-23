@@ -4,6 +4,7 @@ import { withErrorHandler, ValidationError, InternalServerError, NotFoundError }
 import { createSuccessResponse } from '@/lib/errors'
 import { InterviewResponse } from '@/types/api'
 import { processInterview } from '@/services/interviewProcess'
+import { createClient } from '@supabase/supabase-js'
 
 async function getInterviewHandler(request: NextRequest): Promise<NextResponse<InterviewResponse>> {
   const { searchParams } = new URL(request.url)
@@ -13,10 +14,33 @@ async function getInterviewHandler(request: NextRequest): Promise<NextResponse<I
     throw new ValidationError('No id provided')
   }
 
-  const { data, error } = await supabase
+  // Get the current user (using service role key for server-side auth)
+  const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const authHeader = request.headers.get('Authorization')
+  const jwt = authHeader?.replace('Bearer ', '')
+  const { data: { user } } = await supabaseAdmin.auth.getUser(jwt)
+  if (!user) {
+    throw new ValidationError('Not authenticated')
+  }
+
+  // Create a Supabase client with the user's JWT for database operations
+  const supabaseWithAuth = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: `Bearer ${jwt}`
+        }
+      }
+    }
+  )
+
+  const { data, error } = await supabaseWithAuth
     .from('interviews')
     .select('*')
     .eq('id', id)
+    .eq('user_id', user.id)
     .single()
 
   if (error || !data) {
@@ -34,11 +58,34 @@ async function deleteInterviewHandler(request: NextRequest): Promise<NextRespons
     throw new ValidationError('No id provided')
   }
 
-  // Fetch interview to get file path
-  const { data: interview, error: fetchError } = await supabase
+  // Get the current user (using service role key for server-side auth)
+  const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const authHeader = request.headers.get('Authorization')
+  const jwt = authHeader?.replace('Bearer ', '')
+  const { data: { user } } = await supabaseAdmin.auth.getUser(jwt)
+  if (!user) {
+    throw new ValidationError('Not authenticated')
+  }
+
+  // Create a Supabase client with the user's JWT for database operations
+  const supabaseWithAuth = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: `Bearer ${jwt}`
+        }
+      }
+    }
+  )
+
+  // Fetch interview to get file path and check user_id
+  const { data: interview, error: fetchError } = await supabaseWithAuth
     .from('interviews')
     .select('*')
     .eq('id', id)
+    .eq('user_id', user.id)
     .single()
 
   if (fetchError || !interview) {
@@ -47,14 +94,15 @@ async function deleteInterviewHandler(request: NextRequest): Promise<NextRespons
 
   // Delete file from storage
   if (interview.file_path) {
-    await supabase.storage.from('product-documents').remove([interview.file_path])
+    await supabaseWithAuth.storage.from('product-documents').remove([interview.file_path])
   }
 
   // Delete interview record
-  const { error: deleteError } = await supabase
+  const { error: deleteError } = await supabaseWithAuth
     .from('interviews')
     .delete()
     .eq('id', id)
+    .eq('user_id', user.id)
 
   if (deleteError) {
     throw new InternalServerError(deleteError.message)

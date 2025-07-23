@@ -7,11 +7,12 @@ import { InsightsResponse } from '@/types/api'
 import env from '@/lib/env'
 import mammoth from 'mammoth'
 import { extractTextFromPdfBuffer } from '@/lib/pdf-extraction'
+import { createClient } from '@supabase/supabase-js'
 
 const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY })
 
-async function getAllRecommendations(): Promise<string[]> {
-  const { data, error } = await supabase
+async function getAllRecommendations(supabaseWithAuth: any): Promise<string[]> {
+  const { data, error } = await supabaseWithAuth
     .from('interviews')
     .select('summary, keywords, sentiment, pmf_score')
     .not('summary', 'is', null)
@@ -23,7 +24,7 @@ async function getAllRecommendations(): Promise<string[]> {
 
   const recommendations: string[] = []
   
-  data?.forEach((interview) => {
+  data?.forEach((interview: any) => {
     if (interview.summary) {
       recommendations.push(interview.summary)
     }
@@ -35,8 +36,8 @@ async function getAllRecommendations(): Promise<string[]> {
   return recommendations
 }
 
-async function getAllSummariesAndInsights(): Promise<{ summaries: string[]; keyInsights: string[] }> {
-  const { data, error } = await supabase
+async function getAllSummariesAndInsights(supabaseWithAuth: any): Promise<{ summaries: string[]; keyInsights: string[] }> {
+  const { data, error } = await supabaseWithAuth
     .from('interviews')
     .select('summary, key_insights')
     .not('summary', 'is', null)
@@ -49,7 +50,7 @@ async function getAllSummariesAndInsights(): Promise<{ summaries: string[]; keyI
   const summaries: string[] = []
   const keyInsights: string[] = []
 
-  data?.forEach((interview) => {
+  data?.forEach((interview: any) => {
     if (interview.summary) {
       summaries.push(interview.summary)
     }
@@ -70,8 +71,8 @@ async function getAllSummariesAndInsights(): Promise<{ summaries: string[]; keyI
   return { summaries, keyInsights }
 }
 
-async function getAllChunkKeyPoints(): Promise<string[]> {
-  const { data, error } = await supabase
+async function getAllChunkKeyPoints(supabaseWithAuth: any): Promise<string[]> {
+  const { data, error } = await supabaseWithAuth
     .from('interview_chunks')
     .select('key_points')
     .not('key_points', 'is', null)
@@ -82,7 +83,7 @@ async function getAllChunkKeyPoints(): Promise<string[]> {
   }
 
   const keyPoints: string[] = []
-  data?.forEach((chunk) => {
+  data?.forEach((chunk: any) => {
     if (chunk.key_points) {
       try {
         const points = Array.isArray(chunk.key_points)
@@ -99,12 +100,12 @@ async function getAllChunkKeyPoints(): Promise<string[]> {
   return keyPoints
 }
 
-async function getAggregateInsightsWithOpenAI({ summaries, keyInsights, chunkKeyPoints }: { summaries: string[]; keyInsights: string[]; chunkKeyPoints: string[] }, warnings: string[]): Promise<any> {
+async function getAggregateInsightsWithOpenAI({ summaries, keyInsights, chunkKeyPoints }: { summaries: string[]; keyInsights: string[]; chunkKeyPoints: string[] }, warnings: string[], supabaseWithAuth: any): Promise<any> {
   // Get product context and documentation
   let productContext = ''
   let productDocumentation = ''
   try {
-    const { data: product } = await supabase
+    const { data: product } = await supabaseWithAuth
       .from('product_context')
       .select('name, description, url, additional_documents')
       .order('created_at', { ascending: false })
@@ -113,27 +114,11 @@ async function getAggregateInsightsWithOpenAI({ summaries, keyInsights, chunkKey
     if (product) {
       productContext = `PRODUCT: ${product.name || 'Unknown'}\nDESCRIPTION: ${product.description || 'No description'}\nURL: ${product.url || 'No URL'}\n\n`
       if (product.additional_documents && product.additional_documents.length > 0) {
-        // List all files in the product-documents bucket
-        let allFiles: string[] = []
-        try {
-          const { data: fileList, error: listError } = await supabase.storage.from('product-documents').list('')
-          if (fileList && Array.isArray(fileList)) {
-            allFiles = fileList.map(f => f.name)
-          } else if (listError) {
-            warnings.push('Could not list files in product-documents bucket.')
-          }
-        } catch (e) {
-          warnings.push('Error listing files in product-documents bucket.')
-        }
         const docsText = await Promise.all(
           product.additional_documents.map(async (doc: any) => {
-            if (!allFiles.includes(doc.file_path)) {
-              warnings.push(`Documentation file missing from storage: ${doc.file_name} (${doc.file_path})`)
-              return ''
-            }
             try {
-              // Download file from storage
-              const { data: fileData, error: downloadError } = await supabase.storage
+              // Download file from storage directly by full path
+              const { data: fileData, error: downloadError } = await supabaseWithAuth.storage
                 .from('product-documents')
                 .download(doc.file_path)
               if (downloadError || !fileData) {
@@ -145,9 +130,7 @@ async function getAggregateInsightsWithOpenAI({ summaries, keyInsights, chunkKey
               let text = ''
               try {
                 if (doc.file_type === 'application/pdf') {
-                  console.log(`[PDFJS] Buffer length: ${buffer.length}`);
-                  console.log(`[PDFJS] Buffer preview:`, buffer.slice(0, 32));
-                  text = await extractTextFromPdfBuffer(buffer);
+                  text = await extractTextFromPdfBuffer(buffer)
                 } else if (doc.file_type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
                   const result = await mammoth.extractRawText({ buffer })
                   text = result.value
@@ -158,7 +141,8 @@ async function getAggregateInsightsWithOpenAI({ summaries, keyInsights, chunkKey
                 warnings.push(`Could not extract text from documentation file: ${doc.file_name} (${doc.file_path})`)
                 return ''
               }
-              return `${doc.name}:\n${text}`
+              return `${doc.name}:
+${text}`
             } catch (error) {
               warnings.push(`Error processing documentation file: ${doc.file_name} (${doc.file_path})`)
               return ''
@@ -211,10 +195,38 @@ async function getInsightsHandler(request: NextRequest): Promise<NextResponse<In
     throw new ValidationError('Method not allowed')
   }
 
-  // Return the latest insights row
-  const { data, error } = await supabase
+  // Get the current user (using anon key for JWT validation)
+  const supabaseClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  const authHeader = request.headers.get('Authorization')
+  const jwt = authHeader?.replace('Bearer ', '')
+  
+  if (!jwt) {
+    throw new ValidationError('No authentication token provided')
+  }
+  
+  const { data: { user }, error: authError } = await supabaseClient.auth.getUser(jwt)
+  if (!user || authError) {
+    throw new ValidationError('Not authenticated')
+  }
+
+  // Create a Supabase client with the user's JWT for database operations
+  const supabaseWithAuth = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: `Bearer ${jwt}`
+        }
+      }
+    }
+  )
+
+  // Return the latest insights row for this user
+  const { data, error } = await supabaseWithAuth
     .from('insights')
     .select('*')
+    .eq('user_id', user.id)
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -234,15 +246,42 @@ async function postInsightsHandler(request: NextRequest): Promise<NextResponse<I
     throw new ValidationError('Method not allowed')
   }
 
+  // Get the current user (using anon key for JWT validation)
+  const supabaseClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  const authHeader = request.headers.get('Authorization')
+  const jwt = authHeader?.replace('Bearer ', '')
+  
+  if (!jwt) {
+    throw new ValidationError('No authentication token provided')
+  }
+  
+  const { data: { user }, error: authError } = await supabaseClient.auth.getUser(jwt)
+  if (!user || authError) {
+    throw new ValidationError('Not authenticated')
+  }
+
+  // Create a Supabase client with the user's JWT for database operations
+  const supabaseWithAuth = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: `Bearer ${jwt}`
+        }
+      }
+    }
+  )
+
   try {
     const warnings: string[] = []
-    const { summaries, keyInsights } = await getAllSummariesAndInsights()
-    const chunkKeyPoints = await getAllChunkKeyPoints()
-    const aggregateInsights = await getAggregateInsightsWithOpenAI({ summaries, keyInsights, chunkKeyPoints }, warnings)
-    // Store in insights table
-    const { data, error } = await supabase
+    const { summaries, keyInsights } = await getAllSummariesAndInsights(supabaseWithAuth)
+    const chunkKeyPoints = await getAllChunkKeyPoints(supabaseWithAuth)
+    const aggregateInsights = await getAggregateInsightsWithOpenAI({ summaries, keyInsights, chunkKeyPoints }, warnings, supabaseWithAuth)
+    // Store in insights table for this user
+    const { data, error } = await supabaseWithAuth
       .from('insights')
-      .insert([{ insights: aggregateInsights, warnings, updated_at: new Date().toISOString() }])
+      .insert([{ insights: aggregateInsights, warnings, updated_at: new Date().toISOString(), user_id: user.id }])
       .select()
       .single()
 

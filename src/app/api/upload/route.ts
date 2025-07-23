@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { withErrorHandler, ValidationError, InternalServerError } from '@/lib/errors'
 import { createSuccessResponse } from '@/lib/errors'
 import { UploadResponse } from '@/types/api'
+import { createClient } from '@supabase/supabase-js'
 
 
 // File validation
@@ -42,29 +43,53 @@ async function uploadHandler(request: NextRequest): Promise<NextResponse<UploadR
   }
 
   const file = await parseFormData(request)
-  
+
+  // Get the current user (using service role key for server-side auth)
+  const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const authHeader = request.headers.get('Authorization')
+  const jwt = authHeader?.replace('Bearer ', '')
+  const { data: { user } } = await supabaseAdmin.auth.getUser(jwt)
+  if (!user) {
+    throw new ValidationError('Not authenticated')
+  }
+
+  // Create a Supabase client with the user's JWT for database operations
+  const supabaseWithAuth = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: `Bearer ${jwt}`
+        }
+      }
+    }
+  )
+
   // Generate unique filename
   const ext = file.name.split('.').pop() || 'bin'
   const fileName = `${uuidv4()}_${Date.now()}.${ext}`
-  
+  const filePath = `${user.id}/${fileName}`
+
   // Convert file to buffer
   const buffer = Buffer.from(await file.arrayBuffer())
-  
-  // Upload to Supabase storage
-  const uploadResult = await StorageService.uploadInterviewFile(buffer, fileName, file.type)
-  
+
+  // Upload to Supabase storage (user folder)
+  const uploadResult = await StorageService.uploadInterviewFile(buffer, filePath, file.type)
+
   if (!uploadResult.success) {
     throw new InternalServerError(uploadResult.error || 'Upload failed')
   }
 
-  // Insert file metadata into interviews table
-  const { data: interview, error } = await supabase
+  // Insert file metadata into interviews table with user_id
+  const { data: interview, error } = await supabaseWithAuth
     .from('interviews')
     .insert([{ 
       file_name: fileName, 
-      file_path: uploadResult.filePath, 
+      file_path: filePath, 
       file_size: buffer.length,
-      status: 'pending'
+      status: 'pending',
+      user_id: user.id
     }])
     .select()
     .single()

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
+import { AuthProvider } from '@/context/AuthContext'
+import LoginModal from '@/components/LoginModal'
 
 const inter = Inter({
   variable: "--font-inter",
@@ -24,21 +26,18 @@ export const metadata: Metadata = {
   description: "Upload, index, and search through your user research interviews with powerful keyword analysis and categorization.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body
-        className={`${inter.variable} ${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <Navigation />
-        <main>
-          {children}
-        </main>
+      <body>
+        <AuthProvider>
+          <Navigation />
+          <LoginModal />
+          <main>
+            {children}
+          </main>
+        </AuthProvider>
       </body>
     </html>
-  );
+  )
 }
