@@ -5,10 +5,37 @@ import { useInterviews } from '@/hooks/useInterviews'
 import { FileUploadZone } from '@/components/ui/FileUploadZone'
 import { UploadProgressList } from '@/components/ui/UploadProgressList'
 import { RecentInterviewsList } from '@/components/ui/RecentInterviewsList'
+import { useState } from 'react'
+import { supabase } from '@/lib/supabase'
 
 export default function UploadPage() {
   const { uploads, isUploading, uploadFiles, removeUpload } = useFileUpload()
-  const { interviews, loading, deleting, deleteInterview } = useInterviews()
+  const { interviews, loading } = useInterviews()
+  const [deleting, setDeleting] = useState<{ [id: string]: boolean }>({})
+
+  const deleteInterview = async (id: string) => {
+    setDeleting(prev => ({ ...prev, [id]: true }))
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      const headers: Record<string, string> = {}
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+      const response = await fetch(`/api/interviews/${id}`, {
+        method: 'DELETE',
+        headers
+      })
+      if (!response.ok) {
+        throw new Error(`Failed to delete interview: ${response.status}`)
+      }
+      // Optionally refetch interviews here
+    } catch (error) {
+      console.error('Error deleting interview:', error)
+    } finally {
+      setDeleting(prev => ({ ...prev, [id]: false }))
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
@@ -33,8 +60,8 @@ export default function UploadPage() {
           {/* Recent Interviews */}
           {!loading && <RecentInterviewsList 
             interviews={interviews} 
-            deleting={deleting} 
-            onDelete={deleteInterview} 
+            deleting={deleting}
+            onDelete={deleteInterview}
           />}
         </div>
       </div>
